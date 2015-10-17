@@ -1,6 +1,8 @@
 package com.cyclingengineer.upnphomeautomationbridge.upnpdevices;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.fourthline.cling.binding.LocalServiceBindingException;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
@@ -8,7 +10,6 @@ import org.fourthline.cling.model.DefaultServiceManager;
 import org.fourthline.cling.model.ValidationException;
 import org.fourthline.cling.model.meta.DeviceDetails;
 import org.fourthline.cling.model.meta.DeviceIdentity;
-import org.fourthline.cling.model.meta.Icon;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.meta.ManufacturerDetails;
@@ -17,18 +18,28 @@ import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.UDADeviceType;
 import org.fourthline.cling.model.types.UDN;
 
-import com.cyclingengineer.upnphomeautomationbridge.upnpservices.SwitchPowerService;
+import com.cyclingengineer.upnphomeautomationbridge.upnpservices.HvacUserOperatingModeServiceZoneUserMode;
 
-public abstract class BinaryLightDevice extends SwitchPowerService {
+public class HvacZoneThermostatDevice {
 
-	private String deviceIdentity; 
-	private String friendlyName;
-	private String manufacturerName; 
-	private String modelName;
-	private String modelDescription; 
-	private String modelNumber;
+	protected String deviceIdentity; 
+	protected String friendlyName;
+	protected String manufacturerName; 
+	protected String modelName;
+	protected String modelDescription; 
+	protected String modelNumber;
+	protected Class<?> zoneUserModeServiceClass;
 	
-	public BinaryLightDevice(String deviceIdentity, String friendlyName, String manufacturerName, String modelName, String modelDescription, String modelNumber) {
+	protected List<LocalService<?>> serviceList = new ArrayList<LocalService<?>>();
+	
+	
+	public HvacZoneThermostatDevice(String deviceIdentity, 
+			String friendlyName, 
+			String manufacturerName, 
+			String modelName, 
+			String modelDescription, 
+			String modelNumber, 
+			Class<?> zoneUserModeServiceClass) {
 		super();
 		this.deviceIdentity = deviceIdentity; 
 		this.friendlyName = friendlyName;
@@ -36,8 +47,9 @@ public abstract class BinaryLightDevice extends SwitchPowerService {
 		this.modelName = modelName;
 		this.modelDescription = modelDescription; 
 		this.modelNumber = modelNumber;
+		this.zoneUserModeServiceClass = zoneUserModeServiceClass;
 	}	
-
+	
 	public LocalDevice createDevice( ) 
 			throws ValidationException,
 			LocalServiceBindingException, 
@@ -46,7 +58,7 @@ public abstract class BinaryLightDevice extends SwitchPowerService {
 		DeviceIdentity identity = new DeviceIdentity(
 				UDN.uniqueSystemIdentifier(deviceIdentity));
 
-		DeviceType type = new UDADeviceType("BinaryLight", 1);
+		DeviceType type = new UDADeviceType("HVAC_ZoneThermostat", 1);
 
 		DeviceDetails details = new DeviceDetails(friendlyName,
 				new ManufacturerDetails(manufacturerName), new ModelDetails(
@@ -55,14 +67,21 @@ public abstract class BinaryLightDevice extends SwitchPowerService {
 		/*Icon icon = new Icon("image/png", 48, 48, 8, getClass().getResource(
 				"icon.png"));*/
 
-		LocalService switchPowerService = new AnnotationLocalServiceBinder()
-				.read(BinaryLightDevice.class);
+		LocalService<HvacUserOperatingModeServiceZoneUserMode> zoneUserModeLocalService = 
+				new AnnotationLocalServiceBinder().read(zoneUserModeServiceClass);
 
-		switchPowerService.setManager(new DefaultServiceManager(
-				switchPowerService, BinaryLightDevice.class));
+		zoneUserModeLocalService.setManager(
+				new DefaultServiceManager<HvacUserOperatingModeServiceZoneUserMode>(
+						zoneUserModeLocalService, HvacUserOperatingModeServiceZoneUserMode.class
+				)
+		);
 
+		serviceList.add(zoneUserModeLocalService);
+		LocalService[] serviceArray = new LocalService[ serviceList.size() ];
+		serviceList.toArray(serviceArray);
+		
 		return new LocalDevice(identity, type, details, /*icon,*/
-				switchPowerService);
+				serviceArray);
 
 		/*
 		 * Several services can be bound to the same device: return new
@@ -71,4 +90,5 @@ public abstract class BinaryLightDevice extends SwitchPowerService {
 		 */
 
 	}
+	
 }
