@@ -27,8 +27,9 @@ public abstract class BinaryLightDevice extends SwitchPowerService {
 	private String modelName;
 	private String modelDescription; 
 	private String modelNumber;
+	private Class<?> implClass;
 	
-	public BinaryLightDevice(String deviceIdentity, String friendlyName, String manufacturerName, String modelName, String modelDescription, String modelNumber) {
+	public BinaryLightDevice(String deviceIdentity, String friendlyName, String manufacturerName, String modelName, String modelDescription, String modelNumber, Class<?> implementedClass) {
 		super();
 		this.deviceIdentity = deviceIdentity; 
 		this.friendlyName = friendlyName;
@@ -36,6 +37,7 @@ public abstract class BinaryLightDevice extends SwitchPowerService {
 		this.modelName = modelName;
 		this.modelDescription = modelDescription; 
 		this.modelNumber = modelNumber;
+		this.implClass = implementedClass;
 	}	
 
 	public LocalDevice createDevice( ) 
@@ -56,10 +58,10 @@ public abstract class BinaryLightDevice extends SwitchPowerService {
 				"icon.png"));*/
 
 		LocalService switchPowerService = new AnnotationLocalServiceBinder()
-				.read(BinaryLightDevice.class);
+				.read(implClass);
 
 		switchPowerService.setManager(new DefaultServiceManager(
-				switchPowerService, BinaryLightDevice.class));
+				switchPowerService, implClass));
 
 		return new LocalDevice(identity, type, details, /*icon,*/
 				switchPowerService);

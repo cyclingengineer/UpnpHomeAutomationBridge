@@ -9,7 +9,7 @@ public class AcmeExampleBinaryLightDevice extends BinaryLightDevice {
 				"BinaryLight Friendly Name", 
 				"ACME", "ACME light", 
 				"The best light the world has seen", 
-				"v1");
+				"v1", AcmeExampleBinaryLightDevice.class);
 	}
 	
 	
