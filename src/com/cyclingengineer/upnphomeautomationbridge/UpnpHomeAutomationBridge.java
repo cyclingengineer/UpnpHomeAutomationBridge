@@ -3,7 +3,7 @@ package com.cyclingengineer.upnphomeautomationbridge;
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.UpnpServiceImpl;
 
-import com.cyclingengineer.upnphomeautomationbridge.exampleswitch.ExampleBasicSwitch;
+import com.cyclingengineer.upnphomeautomationbridge.examples.AcmeExampleBinaryLightDevice;
 
 public class UpnpHomeAutomationBridge implements Runnable {
 
@@ -18,7 +18,7 @@ public class UpnpHomeAutomationBridge implements Runnable {
         try {
 
             final UpnpService upnpService = new UpnpServiceImpl();
-            ExampleBasicSwitch basicSwitch = new ExampleBasicSwitch();
+            AcmeExampleBinaryLightDevice basicSwitch = new AcmeExampleBinaryLightDevice();
 
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override

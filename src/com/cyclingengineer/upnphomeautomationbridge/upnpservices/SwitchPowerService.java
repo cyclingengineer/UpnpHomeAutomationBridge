@@ -7,7 +7,7 @@ import java.util.logging.Logger;
 	serviceType = @UpnpServiceType(value = "SwitchPower", 
 	version = 1))
 
-public abstract class SwitchPower {
+public abstract class SwitchPowerService {
 
 	protected final Logger log = Logger.getLogger(this.getClass().getName());
 		
