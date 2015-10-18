@@ -11,6 +11,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.fourthline.cling.UpnpService;
+import org.fourthline.cling.model.meta.LocalService;
 import org.openhab.binding.maxcube.internal.MaxCubeDiscover;
 import org.openhab.binding.maxcube.internal.Utils;
 import org.openhab.binding.maxcube.internal.exceptions.IncompleteMessageException;
@@ -31,9 +32,11 @@ import org.openhab.binding.maxcube.internal.message.MessageType;
 import org.openhab.binding.maxcube.internal.message.RoomInformation;
 
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.Room;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.ZoneTemperatureUpdate;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices.Eq3RoomHvacZoneThermostatDevice;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceSystemUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceZoneUserMode;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3TemperatureSensorServiceZoneTemperature;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacSystemDevice;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacZoneThermostatDevice;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.UpnpDevice;
@@ -60,6 +63,8 @@ public class Eq3MaxManager implements Runnable {
 	private ArrayList<Room> rooms = new ArrayList<Room>();
 	
 	private ArrayList<UpnpDevice> upnpDeviceList = new ArrayList<UpnpDevice>();
+	
+	private ArrayList<ZoneTemperatureUpdate> tempUpdateRegister = new ArrayList<ZoneTemperatureUpdate>();
 	
 	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
@@ -277,7 +282,7 @@ public class Eq3MaxManager implements Runnable {
 			logger.fine(Utils.getStackTrace(e));
 		}
 		
-		// TODO build Upnp device(s) based on data received from MAX! cube 
+		// build Upnp device(s) based on data received from MAX! cube 
 		// setup top level system device
 		HvacSystemDevice topLevelHvacSystemDevice = new HvacSystemDevice("MAX! Cube at "+cubeIp, 
 				"MAX! Cube at "+cubeIp, 
@@ -297,24 +302,63 @@ public class Eq3MaxManager implements Runnable {
 					"EQ3 MAX! Room",
 					"Representation of a EQ3 cube room",
 					SERVICE_VERSION,
-					Eq3MaxHvacUserOperatingModeServiceZoneUserMode.class);
-			// TODO add room services as required
+					Eq3MaxHvacUserOperatingModeServiceZoneUserMode.class);			
+			// add room services as required	
+			boolean roomTempSenseIsWallTherm = false;
+			Device roomTempSenseDev = null;
+			for (String devSerial : r.getRoomDeviceList()) {
+				// find device with the serial number
+				Device matchedDevice = null;
+				for (Device d : devices) {					
+					if (d.getSerialNumber().equals(devSerial))
+					{
+						matchedDevice = d;
+						break;
+					}
+				}
+				
+				switch (matchedDevice.getType()) {
+					case HeatingThermostat:
+					case HeatingThermostatPlus:
+						// temperature
+						if (roomTempSenseIsWallTherm == false) {
+							roomTempSenseDev = matchedDevice;
+						}
+						// set point
+						// valve
+						// schedule?
+						break;
+						
+					case WallMountedThermostat:												
+						// temperature
+						if (roomTempSenseIsWallTherm == false){
+							roomTempSenseDev = matchedDevice;
+							roomTempSenseIsWallTherm = true; // favour wall thermostat
+						}
+						// set point
+						// schedule?
+						break;
+						
+					default:
+						// we don't care about other devices
+						break;
+				}
+			}
+			// register for room temperature updates
+			if (roomTempSenseDev != null) {
+				LocalService<?> tempSenseService = newZone.addServiceToDevice(Eq3TemperatureSensorServiceZoneTemperature.class);
+				Eq3TemperatureSensorServiceZoneTemperature roomTempSenseServiceImp = (Eq3TemperatureSensorServiceZoneTemperature) tempSenseService.getManager().getImplementation();
+				roomTempSenseServiceImp.setDeviceSerialNumber(roomTempSenseDev.getSerialNumber());
+				roomTempSenseServiceImp.setName(r.getRoomName() +" "+roomTempSenseDev.getType());
+				tempUpdateRegister.add(roomTempSenseServiceImp);				
+			}
+			
 			// add room zone to HVAC system
-			topLevelHvacSystemDevice.addChildDevice(newZone);			
+			topLevelHvacSystemDevice.addChildDevice(newZone);
 		}
 		
-		// TODO setup Upnp service
-		// example:
+		// setup Upnp service
 		try {			
-            
-			//example device
-            //Eq3RoomHvacZoneThermostatDevice thermostat = new Eq3RoomHvacZoneThermostatDevice("Room Thermostat 1", "RT1 Friendly Name", "Manuf", "Model", "A lovely room thermostat", "v1");
-
-            // add thermostat
-            //this.upnpService.getRegistry().addDevice(
-            //		thermostat.createDevice()
-            //);
-						
 			this.upnpService.getRegistry().addDevice(
 					topLevelHvacSystemDevice.createDevice()
 			);			

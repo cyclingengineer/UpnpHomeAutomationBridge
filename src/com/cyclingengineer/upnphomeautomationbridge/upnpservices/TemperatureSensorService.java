@@ -2,18 +2,29 @@ package com.cyclingengineer.upnphomeautomationbridge.upnpservices;
 
 import org.fourthline.cling.binding.annotations.*;
 
+import java.beans.PropertyChangeSupport;
 import java.util.logging.Logger;
 
 public abstract class TemperatureSensorService {
 
 	protected final Logger log = Logger.getLogger(this.getClass().getName());
 	
+	private final PropertyChangeSupport propertyChangeSupport;
+
+    public TemperatureSensorService() {
+        this.propertyChangeSupport = new PropertyChangeSupport(this);
+    }
+
+    public PropertyChangeSupport getPropertyChangeSupport() {
+        return propertyChangeSupport;
+    }
+	
 	@UpnpStateVariable(defaultValue = "none", sendEvents = true)
 	private String application = "none";
 	
 	// rate limited @ 1 event per 10s, min delta of 0.2 deg or 20 units
 	@UpnpStateVariable(defaultValue = "0", sendEvents = true, eventMaximumRateMilliseconds=10000, eventMinimumDelta=20)
-	private int currentTemperature = 0; // in 100ths of degrees
+	protected int currentTemperature = 0; // in 100ths of degrees
 	
 	@UpnpStateVariable(defaultValue = "", sendEvents = true )
 	private String name = "";

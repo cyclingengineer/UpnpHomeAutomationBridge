@@ -16,7 +16,7 @@ public abstract class UpnpDevice {
 	protected List<LocalService<?>> serviceList = new ArrayList<LocalService<?>>();
 	protected List<UpnpDevice> embeddedDevicesList = new ArrayList<UpnpDevice>();
 	
-	public void addServiceToDevice( Class<?> serviceClass ) {
+	public LocalService<?> addServiceToDevice( Class<?> serviceClass ) {
 		LocalService newLocalService = 
 				new AnnotationLocalServiceBinder().read(serviceClass);
 
@@ -26,6 +26,7 @@ public abstract class UpnpDevice {
 				)
 		);
 		serviceList.add(newLocalService);
+		return newLocalService;
 	}
 	
 	public void addChildDevice( UpnpDevice d ) {
