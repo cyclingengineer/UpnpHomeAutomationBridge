@@ -30,7 +30,7 @@ public class UpnpHomeAutomationBridge implements Runnable{
         	final UpnpService upnpService = new UpnpServiceImpl();
             
             AcmeExampleBinaryLightDevice basicSwitch = new AcmeExampleBinaryLightDevice();
-            //Eq3RoomHvacZoneThermostatDevice thermostat = new Eq3RoomHvacZoneThermostatDevice("Room Thermostat 1", "RT1 Friendly Name", "Manuf", "Model", "A lovely room thermostat", "v1");
+            Eq3RoomHvacZoneThermostatDevice thermostat = new Eq3RoomHvacZoneThermostatDevice("Room Thermostat 1", "RT1 Friendly Name", "Manuf", "Model", "A lovely room thermostat", "v1");
             
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
@@ -44,9 +44,9 @@ public class UpnpHomeAutomationBridge implements Runnable{
             		basicSwitch.createDevice()
             );
             // add thermostat
-            //upnpService.getRegistry().addDevice(
-            //		thermostat.createDevice()
-            //);
+            upnpService.getRegistry().addDevice(
+            		thermostat.createDevice()
+            );
 
         } catch (Exception ex) {
             System.err.println("Exception occured: " + ex);

@@ -9,7 +9,7 @@ public class Eq3RoomHvacZoneThermostatDevice extends HvacZoneThermostatDevice {
 			String friendlyName, String manufacturerName, String modelName,
 			String modelDescription, String modelNumber) {
 		super(deviceIdentity, friendlyName, manufacturerName, modelName,
-				modelDescription, modelNumber, HvacUserOperatingModeService.class);
+				modelDescription, modelNumber, Eq3MaxHvacUserOperatingModeServiceZoneUserMode.class);
 		// TODO add other relevant services to the list?
 	}
 

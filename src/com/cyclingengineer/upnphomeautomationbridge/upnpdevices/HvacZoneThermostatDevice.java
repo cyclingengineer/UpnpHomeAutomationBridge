@@ -67,12 +67,12 @@ public class HvacZoneThermostatDevice {
 		/*Icon icon = new Icon("image/png", 48, 48, 8, getClass().getResource(
 				"icon.png"));*/
 
-		LocalService<HvacUserOperatingModeServiceZoneUserMode> zoneUserModeLocalService = 
+		LocalService zoneUserModeLocalService = 
 				new AnnotationLocalServiceBinder().read(zoneUserModeServiceClass);
 
 		zoneUserModeLocalService.setManager(
-				new DefaultServiceManager<HvacUserOperatingModeServiceZoneUserMode>(
-						zoneUserModeLocalService, HvacUserOperatingModeServiceZoneUserMode.class
+				new DefaultServiceManager(
+						zoneUserModeLocalService, zoneUserModeServiceClass
 				)
 		);
 
