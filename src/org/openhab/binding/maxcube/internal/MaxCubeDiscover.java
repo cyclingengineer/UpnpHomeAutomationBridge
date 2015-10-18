@@ -15,8 +15,7 @@ import java.net.InetAddress;
 import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.logging.Logger;
 
 /**
  * Automatic UDP discovery of a MAX!Cube Lan Gateway on the local network. 
@@ -36,7 +35,7 @@ public final class MaxCubeDiscover {
 		String maxCubeName = null;
 		String rfAddress = null;
 
-		Logger logger = LoggerFactory.getLogger(MaxCubeDiscover.class);
+		final Logger logger = Logger.getLogger(MaxCubeDiscover.class.getName());
 
 		DatagramSocket bcReceipt =null;
 		DatagramSocket bcSend =null;
@@ -69,18 +68,18 @@ public final class MaxCubeDiscover {
 								DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, bc, 23272);
 								bcSend.send(sendPacket);
 							} catch (IOException e) {
-								logger.debug("IO error during MAX! Cube discovery: {}" , e.getMessage());
+								logger.fine("IO error during MAX! Cube discovery: "+ e.getMessage());
 							} catch (Exception e) {
-								logger.debug(e.getMessage());
-								logger.debug(Utils.getStackTrace(e));
+								logger.fine(e.getMessage());
+								logger.fine(Utils.getStackTrace(e));
 							}
-							logger.trace( "Request packet sent to: {} Interface: {}", bc.getHostAddress(),  networkInterface.getDisplayName());
+							logger.finer( "Request packet sent to: "+bc.getHostAddress()+" Interface: "+networkInterface.getDisplayName());
 						}
 					}
 				}
 			}
 
-			logger.trace( "Done looping over all network interfaces. Now waiting for a reply!");
+			logger.finer( "Done looping over all network interfaces. Now waiting for a reply!");
 			bcSend.close();
 
 			bcReceipt = new DatagramSocket(23272);
@@ -92,7 +91,7 @@ public final class MaxCubeDiscover {
 			bcReceipt.receive(receivePacket);
 
 			//We have a response
-			logger.trace( "Broadcast response from server: {}", receivePacket.getAddress());
+			logger.fine( "Broadcast response from server: "+ receivePacket.getAddress());
 
 			//Check if the message is correct
 			String message = new String(receivePacket.getData()).trim();
@@ -102,31 +101,31 @@ public final class MaxCubeDiscover {
 				maxCubeIP=receivePacket.getAddress().getHostAddress();
 				maxCubeName=message.substring(0, 8);
 				rfAddress=message.substring(8, 18);
-				logger.debug("Found at: {}", maxCubeIP);
-				logger.debug("Name    : {}", maxCubeName);
-				logger.debug("Serial  : {}", rfAddress);
-				logger.trace("Message : {}", message);	
+				logger.fine("Found at: "+ maxCubeIP);
+				logger.fine("Name    : "+ maxCubeName);
+				logger.fine("Serial  : "+ rfAddress);
+				logger.finer("Message : "+ message);	
 			} else {
 				logger.info("No Max!Cube gateway found on network");
 			}
 
 		} catch (IOException e) {
-			logger.debug("IO error during MAX! Cube discovery: {}" , e.getMessage());
+			logger.fine("IO error during MAX! Cube discovery: "+ e.getMessage());
 		} catch (Exception e) {
-			logger.debug(e.getMessage());
-			logger.debug(Utils.getStackTrace(e));
+			logger.fine(e.getMessage());
+			logger.fine(Utils.getStackTrace(e));
 		} finally{
 			try {
 				if (bcReceipt !=null)
 					bcReceipt.close();
 			} catch (Exception e) {
-				logger.debug(e.toString());
+				logger.fine(e.toString());
 			}
 			try {
 				if (bcSend !=null)
 					bcSend.close();
 			} catch (Exception e) {
-				logger.debug(e.toString());
+				logger.fine(e.toString());
 			}
 		}
 
