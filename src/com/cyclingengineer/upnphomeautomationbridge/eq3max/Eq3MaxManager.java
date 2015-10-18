@@ -24,6 +24,7 @@ import org.openhab.binding.maxcube.internal.message.C_Message;
 import org.openhab.binding.maxcube.internal.message.Configuration;
 import org.openhab.binding.maxcube.internal.message.Device;
 import org.openhab.binding.maxcube.internal.message.DeviceInformation;
+import org.openhab.binding.maxcube.internal.message.HeatingThermostat;
 import org.openhab.binding.maxcube.internal.message.L_Message;
 import org.openhab.binding.maxcube.internal.message.M_Message;
 import org.openhab.binding.maxcube.internal.message.Message;
@@ -47,6 +48,7 @@ import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.UpnpDevice;
  */
 public class Eq3MaxManager implements Runnable {
 	
+	private final static int REFRESH_INTERVAL = 10000;
 	private final static String SERVICE_VERSION = "v1";
 	private UpnpService upnpService;
 	private String cubeIp = "";
@@ -349,6 +351,7 @@ public class Eq3MaxManager implements Runnable {
 				LocalService<?> tempSenseService = newZone.addServiceToDevice(Eq3TemperatureSensorServiceZoneTemperature.class);
 				Eq3TemperatureSensorServiceZoneTemperature roomTempSenseServiceImp = (Eq3TemperatureSensorServiceZoneTemperature) tempSenseService.getManager().getImplementation();
 				roomTempSenseServiceImp.setDeviceSerialNumber(roomTempSenseDev.getSerialNumber());
+				roomTempSenseServiceImp.setApplication("Room");
 				roomTempSenseServiceImp.setName(r.getRoomName() +" "+roomTempSenseDev.getType());
 				tempUpdateRegister.add(roomTempSenseServiceImp);				
 			}
@@ -369,8 +372,138 @@ public class Eq3MaxManager implements Runnable {
             System.exit(1);
         }
 		
-		// TODO request data from max cube & start update loop
+		boolean continuePolling = true;
+		while (continuePolling) {
+			continuePolling = cubePoller();
+		}		
+	}
+	
+	boolean cubePoller() {
+		boolean continuePolling = true;
+		try {
+			Thread.sleep(REFRESH_INTERVAL);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 		
+		try {
+			openCubeConnection();
+		} catch (UnknownHostException e) {
+			logger.severe("Unable to connect to cube (UnknownHostException): "+e.getMessage());
+			return true;
+		} catch (IOException e) { 
+			logger.severe("Unable to connect to cube (IOException): "+e.getMessage());
+			return true;
+		}
+		
+		logger.info("Successfully connected to cube at "+cubeIp);	
+		
+		// Find all available devices
+		boolean processMessages = true;
+		while (processMessages) {
+			String rawLine = null;
+			try {
+				rawLine = cubeReader.readLine();
+			} catch (Exception e) {
+				logger.severe("Error reading data from cube: "+e.getMessage());
+				processMessages = false;
+				continue;
+			}			
+			
+			if (rawLine == null) {
+				// run out of data
+				processMessages = false;
+				continue;
+			}
+			
+			Message message = null;
+			try {
+				this.messageProcessor.addReceivedLine(rawLine);
+				if (this.messageProcessor.isMessageAvailable()) {
+					message = this.messageProcessor.pull();					
+				} else {
+					continue;
+				}
+				
+				if (message != null) {
+					message.debug(logger);
+
+					// process messages
+					switch (message.getType())
+					{
+					case L:
+						logger.info("Doing update from Cube");
+						((L_Message) message).updateDevices(devices, configurations);
+						processMessages = false; // this is the end of stuff from the cube
+						break;
+					default:
+						// TODO - configuration updates?
+						break;
+					}
+				}
+			} catch (IncorrectMultilineIndexException ex) {
+				logger.info("Incorrect MAX!Cube multiline message detected. Stopping processing and continue with next Line.");
+				this.messageProcessor.reset();
+			} catch (NoMessageAvailableException ex) {
+				logger.info("Could not process MAX!Cube message. Stopping processing and continue with next Line.");
+				this.messageProcessor.reset();
+			} catch (IncompleteMessageException ex) {
+				logger.info("Error while parsing MAX!Cube multiline message. Stopping processing, and continue with next Line.");
+				this.messageProcessor.reset();
+			} catch (UnprocessableMessageException ex) {
+				logger.info("Error while parsing MAX!Cube message. Stopping processing, and continue with next Line.");
+				this.messageProcessor.reset();
+			} catch (UnsupportedMessageTypeException ex) {
+				logger.info("Unsupported MAX!Cube message detected. Ignoring and continue with next Line.");
+				this.messageProcessor.reset();
+			} catch (MessageIsWaitingException ex) {
+				logger.info("There was and unhandled message waiting. Ignoring and continue with next Line.");
+				this.messageProcessor.reset();
+			} catch (Exception e) {
+				logger.info("Failed to process message received by MAX! protocol.");
+				logger.fine(Utils.getStackTrace(e));
+				this.messageProcessor.reset();
+			}
+		}
+		
+		try {
+			closeCubeConnection();
+		} catch (IOException e) {
+			logger.warning("Failed to close cube socket");
+			logger.fine(Utils.getStackTrace(e));
+		}
+
+		// TODO process the updates
+		for (Device d : devices){
+			// check for device in update registry
+			ZoneTemperatureUpdate updateTempSensorTarget = null;
+			for (ZoneTemperatureUpdate tempUpdate : tempUpdateRegister) {
+				if (tempUpdate.getDeviceSerialNumber().equals(d.getSerialNumber()))
+					updateTempSensorTarget = tempUpdate;
+			}
+			
+			switch (d.getType()) {
+			case HeatingThermostatPlus:
+			case HeatingThermostat:
+				if (updateTempSensorTarget != null && ((HeatingThermostat) d).isTemperatureActualUpdated()){
+					updateTempSensorTarget.zoneTemperatureSensorUpdate(((HeatingThermostat) d).getTemperatureActual());
+				}
+				break;
+				
+			case WallMountedThermostat:
+				if (updateTempSensorTarget != null && ((HeatingThermostat) d).isTemperatureActualUpdated()){
+					updateTempSensorTarget.zoneTemperatureSensorUpdate(((HeatingThermostat) d).getTemperatureActual());
+				}
+				break;
+				
+			case ShutterContact:
+				break;
+				
+			default:
+				break;
+			}
+		}
+		return continuePolling;
 	}
 
 }
