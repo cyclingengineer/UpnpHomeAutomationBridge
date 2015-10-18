@@ -9,11 +9,10 @@
 package org.openhab.binding.maxcube.internal.message;
 
 import java.io.UnsupportedEncodingException;
+import java.util.logging.Logger;
 
 import org.apache.commons.codec.binary.Base64;
 import org.openhab.binding.maxcube.internal.Utils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The C message contains configuration about a MAX! device.
@@ -23,7 +22,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class C_Message extends Message {
 
-	private static final Logger logger = LoggerFactory.getLogger(C_Message.class);
+	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 
 	private String rfAddress = null;
 	private int length = 0;
@@ -46,7 +45,7 @@ public final class C_Message extends Message {
 
 	public C_Message(String raw) {
 		super(raw);
-		logger.debug(" *** C-Message ***");
+		logger.fine(" *** C-Message ***");
 		String[] tokens = this.getPayload().split(Message.DELIMETER);
 
 		rfAddress = tokens[0];
@@ -61,19 +60,19 @@ public final class C_Message extends Message {
 
 		length = data[0];
 		if (length != data.length - 1) {
-			logger.debug("C_Message malformed: wrong data length. Expected bytes {}, actual bytes {}", length, data.length - 1);
+			logger.fine("C_Message malformed: wrong data length. Expected bytes "+length+", actual bytes "+ (data.length - 1));
 		}
 
 		String rfAddress2 = Utils.toHex(data[1], data[2], data[3]);
 		if (!rfAddress.toUpperCase().equals(rfAddress2.toUpperCase())) {
-			logger.debug("C_Message malformed: wrong RF address. Expected address {}, actual address {}", rfAddress.toUpperCase(), rfAddress2.toUpperCase());
+			logger.fine("C_Message malformed: wrong RF address. Expected address "+rfAddress.toUpperCase()+", actual address "+ rfAddress2.toUpperCase());
 		}
 
 		deviceType = DeviceType.create(data[4]);
 
 		serialNumber = getSerialNumber(bytes);
 		if (deviceType == DeviceType.HeatingThermostatPlus || deviceType == DeviceType.HeatingThermostat || deviceType == DeviceType.WallMountedThermostat)  parseHeatingThermostatData (bytes);
-		if (deviceType == DeviceType.EcoSwitch || deviceType == DeviceType.ShutterContact)  logger.trace("Device {} type {} Data:",  rfAddress, deviceType.toString() , parseData (bytes));
+		if (deviceType == DeviceType.EcoSwitch || deviceType == DeviceType.ShutterContact)  logger.finer("Device "+rfAddress+" type "+deviceType.toString()+" Data:"+ parseData (bytes));
 	}
 
 	private String getSerialNumber(byte[] bytes) {
@@ -86,7 +85,7 @@ public final class C_Message extends Message {
 		try {
 			return new String(sn, "UTF-8");
 		} catch (UnsupportedEncodingException e) {
-			logger.debug("Cannot encode serial number from C message due to encoding issues.");
+			logger.fine("Cannot encode serial number from C message due to encoding issues.");
 		}
 
 		return "";
@@ -101,16 +100,16 @@ public final class C_Message extends Message {
 			for (int i = 0; i < sn.length; i++) {
 				sn[i] = (byte) bytes[i + DataStart];
 			}
-			logger.trace("DataBytes: " + Utils.getHex(sn));
+			logger.finer("DataBytes: " + Utils.getHex(sn));
 			try {
 				return new String(sn, "UTF-8");
 			} catch (UnsupportedEncodingException e) {
-				logger.debug("Cannot encode device string from C message due to encoding issues.");
+				logger.fine("Cannot encode device string from C message due to encoding issues.");
 			}
 
 		}  catch (Exception e) {
-			logger.debug(e.getMessage());
-			logger.debug(Utils.getStackTrace(e));
+			logger.fine(e.getMessage());
+			logger.fine(Utils.getStackTrace(e));
 		}
 
 		return "";
@@ -126,19 +125,19 @@ public final class C_Message extends Message {
 			tempSetpointMax=  Float.toString( bytes[plusDataStart + 2]/2);
 			tempSetpointMin=  Float.toString( bytes[plusDataStart + 3]/2);
 
-			logger.debug("DeviceType:             {}", deviceType.toString());
-			logger.debug("RFAddress:              {}", rfAddress);
-			logger.debug("Temp Comfort:           {}", tempComfort);
-			logger.debug("TempEco:                {}", tempEco);
-			logger.debug("Temp Setpoint Max:      {}", tempSetpointMax);
-			logger.debug("Temp Setpoint Min:      {}", tempSetpointMin);			
+			logger.fine("DeviceType:             "+ deviceType.toString());
+			logger.fine("RFAddress:              "+ rfAddress);
+			logger.fine("Temp Comfort:           "+ tempComfort);
+			logger.fine("TempEco:                "+ tempEco);
+			logger.fine("Temp Setpoint Max:      "+ tempSetpointMax);
+			logger.fine("Temp Setpoint Min:      "+ tempSetpointMin);			
 
 			if (bytes.length < 211) {
 				// Device is a WallMountedThermostat
 				programDataStart = 4;
-				logger.trace("WallThermostat byte {}: {}", bytes.length -3, Float.toString( bytes[bytes.length -3]&0xFF));
-				logger.trace("WallThermostat byte {}: {}", bytes.length -2, Float.toString( bytes[bytes.length -2]&0xFF));
-				logger.trace("WallThermostat byte {}: {}", bytes.length -1, Float.toString( bytes[bytes.length -1]&0xFF));
+				logger.finer("WallThermostat byte "+(bytes.length -3)+": "+ Float.toString( bytes[bytes.length -3]&0xFF));
+				logger.finer("WallThermostat byte "+(bytes.length -2)+": "+ Float.toString( bytes[bytes.length -2]&0xFF));
+				logger.finer("WallThermostat byte "+(bytes.length -1)+": "+ Float.toString( bytes[bytes.length -1]&0xFF));
 			} else
 			{
 				// Device is a HeatingThermostat(+)
@@ -150,14 +149,14 @@ public final class C_Message extends Message {
 				decalcification =  Float.toString( bytes[plusDataStart + 8]);
 				valveMaximum = Float.toString( bytes[plusDataStart + 9]&0xFF * 100 / 255);
 				valveOffset = Float.toString( bytes[plusDataStart+ 10]&0xFF * 100 / 255 );
-				logger.debug("Temp Offset:            {}", tempOffset);
-				logger.debug("Temp Open Window:       {}", tempOpenWindow );
-				logger.debug("Duration Open Window:   {}", durationOpenWindow);
-				logger.debug("Duration Boost:         {}", boostDuration);
-				logger.debug("Boost Valve Pos:        {}", boostValve);
-				logger.debug("Decalcification:        {}", decalcification);
-				logger.debug("ValveMaximum:           {}", valveMaximum);
-				logger.debug("ValveOffset:            {}", valveOffset);
+				logger.fine("Temp Offset:            "+ tempOffset);
+				logger.fine("Temp Open Window:       "+ tempOpenWindow );
+				logger.fine("Duration Open Window:   "+ durationOpenWindow);
+				logger.fine("Duration Boost:         "+ boostDuration);
+				logger.fine("Boost Valve Pos:        "+ boostValve);
+				logger.fine("Decalcification:        "+ decalcification);
+				logger.fine("ValveMaximum:           "+ valveMaximum);
+				logger.fine("ValveOffset:            "+ valveOffset);
 			}
 			programData = "";
 			int ln = 13 * 6; //first day = Sat 
@@ -173,11 +172,11 @@ public final class C_Message extends Message {
 				char_idx++;
 				ln++;
 			}
-			logger.debug("ProgramData:          {}", programData);
+			logger.fine("ProgramData:          "+ programData);
 
 		}  catch (Exception e) {
-			logger.debug(e.getMessage());
-			logger.debug(Utils.getStackTrace(e));
+			logger.fine(e.getMessage());
+			logger.fine(Utils.getStackTrace(e));
 		}
 		return ;
 	}
@@ -201,10 +200,10 @@ public final class C_Message extends Message {
 
 	@Override
 	public void debug(Logger logger) {
-		logger.debug("=== C_Message === ");
-		logger.trace("\tRAW:        {}", this.getPayload());
-		logger.debug("DeviceType:   {}" , deviceType.toString());
-		logger.debug("SerialNumber: {}" , serialNumber);
-		logger.debug("RFAddress:    {}" , rfAddress);
+		logger.fine("=== C_Message === ");
+		logger.finer("\tRAW:        "+ this.getPayload());
+		logger.fine("DeviceType:    "+ deviceType.toString());
+		logger.fine("SerialNumber:  "+ serialNumber);
+		logger.fine("RFAddress:     "+ rfAddress);
 	}
 }

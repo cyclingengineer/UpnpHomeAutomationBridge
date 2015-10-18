@@ -10,7 +10,6 @@ package org.openhab.binding.maxcube.internal.message;
 
 import org.apache.commons.codec.binary.Base64;
 import org.openhab.binding.maxcube.internal.Utils;
-import org.slf4j.Logger;
 
 /**
  * Command to be send via the MAX!Cube protocol.

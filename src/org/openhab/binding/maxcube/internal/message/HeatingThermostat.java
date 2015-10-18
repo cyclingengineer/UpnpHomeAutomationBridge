@@ -8,13 +8,9 @@
  */
 package org.openhab.binding.maxcube.internal.message;
 
-import java.text.DecimalFormat;
 import java.util.Calendar;
 import java.util.Date;
 
-import org.openhab.core.library.types.DecimalType;
-import org.openhab.core.library.types.StringType;
-import org.openhab.core.types.State;
 
 /**
  * MAX!Cube heating thermostat.
@@ -79,8 +75,8 @@ public class HeatingThermostat extends Device {
 	/**
 	 * Returns the current mode of the thermostat.
 	 */
-	public StringType getModeString() {
-		return new StringType (this.mode.toString());
+	public String getModeString() {
+		return this.mode.toString();
 	}
 
 	/**
@@ -118,8 +114,8 @@ public class HeatingThermostat extends Device {
 	 * @return 
 	 * 			the valve position as <code>DecimalType</code>
 	 */
-	public DecimalType getValvePosition() {
-		return new DecimalType(this.valvePosition);
+	public int getValvePosition() {
+		return this.valvePosition;
 	}
 
 	public void setDateSetpoint(Date date) {
@@ -146,8 +142,8 @@ public class HeatingThermostat extends Device {
 	 * @return 
 	 * 			the actual temperature as <code>DecimalType</code>
 	 */
-	public State getTemperatureActual() {
-		return new DecimalType(this.temperatureActual);
+	public double getTemperatureActual() {
+		return this.temperatureActual;
 	}
 
 	/**
@@ -171,8 +167,8 @@ public class HeatingThermostat extends Device {
 	 * @return 
 	 * 			the setpoint temperature as <code>DecimalType</code>
 	 */
-	public State getTemperatureSetpoint() {
-		return new DecimalType(this.temperatureSetpoint);
+	public double getTemperatureSetpoint() {
+		return this.temperatureSetpoint;
 	}
 
 	public boolean isModeUpdated() {

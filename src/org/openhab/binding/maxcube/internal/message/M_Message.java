@@ -9,12 +9,10 @@
 package org.openhab.binding.maxcube.internal.message;
 
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 import org.apache.commons.codec.binary.Base64;
-import org.openhab.binding.maxcube.internal.MaxCubeBinding;
 import org.openhab.binding.maxcube.internal.Utils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The M message contains metadata about the MAX!Cube setup. 
@@ -27,7 +25,7 @@ public final class M_Message extends Message {
 	public ArrayList<RoomInformation> rooms;
 	public ArrayList<DeviceInformation> devices;
 	private Boolean hasConfiguration ;
-	Logger logger = LoggerFactory.getLogger(MaxCubeBinding.class);
+	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
 
 	public M_Message(String raw) {
@@ -40,10 +38,10 @@ public final class M_Message extends Message {
 			byte[] bytes = Base64.decodeBase64(tokens[2].getBytes());
 			
 			hasConfiguration = true;
-			logger.trace("*** M_Message trace**** ");
-			logger.trace ("\tMagic? (expect 86) : {}", (int) bytes[0]);
-			logger.trace ("\tVersion? (expect 2): {}", (int) bytes[1]);
-			logger.trace ("\t#defined rooms in M: {}", (int) bytes[2]);
+			logger.finer("*** M_Message trace**** ");
+			logger.finer ("\tMagic? (expect 86) : "+ (int) bytes[0]);
+			logger.finer ("\tVersion? (expect 2): "+ (int) bytes[1]);
+			logger.finer ("\t#defined rooms in M: "+ (int) bytes[2]);
 			
 			
 			rooms = new ArrayList<RoomInformation>();
@@ -99,8 +97,8 @@ public final class M_Message extends Message {
 		}  catch (Exception e) {
 			logger.info("Unknown error parsing the M Message");
 			logger.info(e.getMessage());
-			logger.debug(Utils.getStackTrace(e));
-			logger.debug("\tRAW : {}", this.getPayload());
+			logger.finer(Utils.getStackTrace(e));
+			logger.fine("\tRAW : "+ this.getPayload());
 		}
 		else {
 			logger.info("No rooms defined. Configure your Max!Cube");
@@ -110,29 +108,29 @@ public final class M_Message extends Message {
 
 	@Override
 	public void debug(Logger logger) {
-		logger.debug("=== M_Message === ");
+		logger.fine("=== M_Message === ");
 		if (hasConfiguration) {
-			logger.trace("\tRAW : {}", this.getPayload());
+			logger.finer("\tRAW : "+ this.getPayload());
 			for(RoomInformation room: rooms){
-				logger.debug("\t=== Rooms ===");
-				logger.debug("\tRoom Pos   : {}", room.getPosition());
-				logger.debug("\tRoom Name  : {}", room.getName());
-				logger.debug("\tRoom RF Adr: {}",  room.getRFAddress());
+				logger.fine("\t=== Rooms ===");
+				logger.fine("\tRoom Pos   : {}"+ room.getPosition());
+				logger.fine("\tRoom Name  : {}"+ room.getName());
+				logger.fine("\tRoom RF Adr: {}"+  room.getRFAddress());
 				for(DeviceInformation device: devices){
 					if (room.getPosition() == device.getRoomId()) {
-						logger.debug("\t=== Devices ===");
-						logger.debug("\tDevice Type    : {}", device.getDeviceType());
-						logger.debug("\tDevice Name    : {}", device.getName());
-						logger.debug("\tDevice Serialnr: {}", device.getSerialNumber());
-						logger.debug("\tDevice RF Adr  : {}", device.getRFAddress());
-						logger.debug("\tRoom Id        : {}", device.getRoomId());
+						logger.fine("\t=== Devices ===");
+						logger.fine("\tDevice Type    : "+ device.getDeviceType());
+						logger.fine("\tDevice Name    : "+ device.getName());
+						logger.fine("\tDevice Serialnr: "+ device.getSerialNumber());
+						logger.fine("\tDevice RF Adr  : "+ device.getRFAddress());
+						logger.fine("\tRoom Id        : "+ device.getRoomId());
 					}
 				}
 
 			}
 		} 
 		else {
-			logger.debug("M-Message empty. No Configuration");
+			logger.fine("M-Message empty. No Configuration");
 		}
 	}
 

@@ -11,7 +11,7 @@ package org.openhab.binding.maxcube.internal.message;
 import java.util.Calendar;
 
 import org.openhab.binding.maxcube.internal.Utils;
-import org.slf4j.Logger;
+import java.util.logging.Logger;
 
 
 /**
@@ -76,18 +76,18 @@ public final class H_Message extends Message {
 	
 	@Override
 	public void debug(Logger logger) {
-		logger.debug("=== H_Message === ");
-		logger.trace("\tRAW:            : {}", this.getPayload());
-		logger.debug("\tReading Time    : {}", cal.getTime());
-		logger.debug("\tSerial number   : {}", rawSerialNumber);
-		logger.debug("\tRF address (HEX): {}", rawRfHexAddress);
-		logger.debug("\tFirmware version: {}", rawFirmwareVersion);
-		logger.debug("\tConnection ID   : {}", rawConnectionId);
-		logger.debug("\tUnknown         : {}", rawUnknownfield4);
-		logger.debug("\tDuty Cycle      : {}", rawDutyCycle);
-		logger.debug("\tFreeMemorySlots : {}", rawFreeMemorySlots);
-		logger.debug("\tCubeTimeState   : {}", rawCubeTimeState);
-		logger.debug("\tNTPCounter      : {}", rawNTPCounter);
+		logger.fine("=== H_Message === ");
+		logger.finer("\tRAW:            : "+ this.getPayload());
+		logger.fine("\tReading Time    : "+ cal.getTime());
+		logger.fine("\tSerial number   : "+ rawSerialNumber);
+		logger.fine("\tRF address (HEX): "+ rawRfHexAddress);
+		logger.fine("\tFirmware version: "+ rawFirmwareVersion);
+		logger.fine("\tConnection ID   : "+ rawConnectionId);
+		logger.fine("\tUnknown         : "+ rawUnknownfield4);
+		logger.fine("\tDuty Cycle      : "+ rawDutyCycle);
+		logger.fine("\tFreeMemorySlots : "+ rawFreeMemorySlots);
+		logger.fine("\tCubeTimeState   : "+ rawCubeTimeState);
+		logger.fine("\tNTPCounter      : "+ rawNTPCounter);
 	}
 
 	@Override

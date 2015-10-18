@@ -8,9 +8,6 @@
  */
 package org.openhab.binding.maxcube.internal.message;
 
-import java.util.Calendar;
-import org.openhab.binding.maxcube.internal.Utils;
-
 /**
 * Base class for configuration provided by the MAX!Cube C_Message. 
 * 

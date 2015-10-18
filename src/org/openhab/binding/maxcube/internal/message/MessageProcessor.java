@@ -10,6 +10,7 @@ package org.openhab.binding.maxcube.internal.message;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.openhab.binding.maxcube.internal.exceptions.IncompleteMessageException;
 import org.openhab.binding.maxcube.internal.exceptions.IncorrectMultilineIndexException;
@@ -17,8 +18,6 @@ import org.openhab.binding.maxcube.internal.exceptions.MessageIsWaitingException
 import org.openhab.binding.maxcube.internal.exceptions.NoMessageAvailableException;
 import org.openhab.binding.maxcube.internal.exceptions.UnprocessableMessageException;
 import org.openhab.binding.maxcube.internal.exceptions.UnsupportedMessageTypeException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The message processor was introduced to combine multiple received lines to
@@ -34,7 +33,7 @@ import org.slf4j.LoggerFactory;
  */
 public class MessageProcessor {
 
-	private static final Logger logger = LoggerFactory.getLogger(MessageProcessor.class);
+	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
 	public static final String SEPARATOR = ":";
 	

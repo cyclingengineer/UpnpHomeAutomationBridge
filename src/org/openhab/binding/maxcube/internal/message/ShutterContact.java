@@ -10,7 +10,7 @@ package org.openhab.binding.maxcube.internal.message;
 
 import java.util.Calendar;
 
-import org.openhab.core.library.types.OpenClosedType;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.OpenClosedType;
 
 /**
  * MAX!Cube Shutter contact device.
@@ -34,7 +34,7 @@ public class ShutterContact extends Device {
 
 	public void setShutterState(OpenClosedType shutterState) {
 		if(this.shutterState != shutterState) {
-			logger.debug("updated shutterstate from "+this.shutterState+" to "+shutterState);
+			logger.fine("updated shutterstate from "+this.shutterState+" to "+shutterState);
 			this.shutterStateUpdated = true;
 		}else{
 			this.shutterStateUpdated = false;

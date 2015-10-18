@@ -9,9 +9,10 @@
 package org.openhab.binding.maxcube.internal.message;
 
 
+import java.util.logging.Logger;
+
 import org.openhab.binding.maxcube.internal.MaxCubeBinding;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 
 
 /**
@@ -27,7 +28,7 @@ public final class S_Message extends Message {
 	private int dutyCycle;
 	private int freeMemorySlots;
 	private boolean commandDiscarded = false;
-	Logger logger = LoggerFactory.getLogger(MaxCubeBinding.class);
+	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
 	public S_Message(String raw) {
 		super(raw);
@@ -38,11 +39,11 @@ public final class S_Message extends Message {
 				commandDiscarded = tokens[1] == "1";
 				freeMemorySlots = Integer.parseInt(tokens[2],16);
 			} catch(Exception e) {
-				logger.debug("Exception occurred during parsing of S message: {}", e.getMessage(), e);
+				logger.fine("Exception occurred during parsing of S message: "+ e.getMessage()+" "+ e);
 			}
 		}else
 		{
-			logger.debug("Unexpected # of tolkens ({}) received in S message: {}",tokens.length,this.getPayload());
+			logger.fine("Unexpected # of tolkens ("+tokens.length+") received in S message: "+this.getPayload());
 		}
 	}
 	
@@ -60,11 +61,11 @@ public final class S_Message extends Message {
 	
 	@Override
 	public void debug(Logger logger) {
-		logger.trace("=== S_Message === ");
-		logger.trace("\tRAW : {}", this.getPayload());
-		logger.trace("\tDutyCycle : {}", this.dutyCycle);
-		logger.trace("\tCommand Discarded : {}", this.commandDiscarded);
-		logger.trace("\tFreeMemorySlots : {}", this.freeMemorySlots);
+		logger.finer("=== S_Message === ");
+		logger.finer("\tRAW : "+ this.getPayload());
+		logger.finer("\tDutyCycle : "+ this.dutyCycle);
+		logger.finer("\tCommand Discarded : "+ this.commandDiscarded);
+		logger.finer("\tFreeMemorySlots : "+ this.freeMemorySlots);
 	}
 	
 	@Override

@@ -11,12 +11,12 @@ package org.openhab.binding.maxcube.internal.message;
 import java.util.Date;
 import java.util.Calendar;
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.openhab.binding.maxcube.internal.Utils;
 import org.openhab.binding.maxcube.internal.message.Battery.Charge;
-import org.openhab.core.library.types.OpenClosedType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.OpenClosedType;
 
 /**
  * Base class for devices provided by the MAX!Cube protocol.
@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class Device {
 
-	protected final static Logger logger = LoggerFactory.getLogger(Device.class);
+	protected final static Logger logger = Logger.getLogger(Device.class.getName());
 
 	private String serialNumber = "";
 	private String rfAddress = "";
@@ -92,7 +92,7 @@ public abstract class Device {
 
 		Device device = Device.create(rfAddress, configurations);
 		if (device == null) {
-			logger.warn("Can't create device from received message, returning NULL.");
+			logger.warning("Can't create device from received message, returning NULL.");
 			return null;
 		}
 		
@@ -120,7 +120,7 @@ public abstract class Device {
 		device.setLinkStatusError(bits2[6]);
 		device.battery().setCharge(bits2[7] ? Charge.LOW : Charge.OK);
 
-		logger.trace ("Device {} L Message length: {} content: {}", rfAddress,raw.length,Utils.getHex(raw));
+		logger.finer ("Device "+rfAddress+" L Message length: "+raw.length+" content: "+Utils.getHex(raw));
 
 		// TODO move the device specific readings into the sub classes
 		switch (device.getType()) {
@@ -162,34 +162,34 @@ public abstract class Device {
 						heatingThermostat.getMode() != ThermostatModeType.BOOST){
 					actualTemp = (raw[8] & 0xFF ) * 256  + ( raw[9] & 0xFF );
 				} else{
-					logger.debug ("No temperature reading in {} mode", heatingThermostat.getMode()) ;
+					logger.fine ("No temperature reading in "+heatingThermostat.getMode()+" mode" ) ;
 				}
 			}
 			
 			if (actualTemp != 0) {
-				logger.debug ("Actual Temperature : {}",  (double)actualTemp / 10);
+				logger.fine ("Actual Temperature : "+  (double)actualTemp / 10);
 				heatingThermostat.setTemperatureActual((double)actualTemp / 10);
 			}
 			break;
 		case EcoSwitch:
 			String eCoSwitchData = Utils.toHex(raw[3] & 0xFF, raw[4] & 0xFF, raw[5] & 0xFF);
-			logger.trace ("EcoSwitch Device {} status bytes : {}", rfAddress, eCoSwitchData);
+			logger.finer ("EcoSwitch Device "+rfAddress+" status bytes : "+eCoSwitchData);
 		case ShutterContact:
 			ShutterContact shutterContact = (ShutterContact) device;
 			// xxxx xx10 = shutter open, xxxx xx00 = shutter closed
 			if (bits2[1] == true && bits2[0] == false) {
 				shutterContact.setShutterState(OpenClosedType.OPEN);
-				logger.trace ("Device {} status: Open", rfAddress);
+				logger.finer ("Device "+rfAddress+" status: Open" );
 			} else if (bits2[1] == false && bits2[0] == false) {
 				shutterContact.setShutterState(OpenClosedType.CLOSED);
-				logger.trace ("Device {} status: Closed", rfAddress);
+				logger.finer ("Device "+rfAddress+" status: Closed"+ rfAddress);
 			} else {
-				logger.trace ("Device {} status switch status Unknown (true-true)", rfAddress);
+				logger.finer ("Device "+rfAddress+" status switch status Unknown (true-true)" );
 			}
 
 			break;
 		default:
-			logger.debug("Unhandled Device. DataBytes: " + Utils.getHex(raw));
+			logger.fine("Unhandled Device. DataBytes: " + Utils.getHex(raw));
 			break;
 
 		}

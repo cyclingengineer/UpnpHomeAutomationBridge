@@ -8,10 +8,9 @@
  */
 package org.openhab.binding.maxcube.internal.message;
 
-import org.openhab.core.library.types.StringType;
-import org.openhab.core.types.State;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.logging.Logger;
+
+
 
 /**
  * The battery of a MAX!Cube {@link Device}.
@@ -21,20 +20,20 @@ import org.slf4j.LoggerFactory;
  */
 public class Battery {
 	
-	private static final Logger logger = LoggerFactory.getLogger(Battery.class);
+	protected final Logger log = Logger.getLogger(this.getClass().getName());
 	private Charge charge = Charge.UNKNOWN;
 	private boolean chargeUpdated;
 
 	public void setCharge(Charge charge) {
 		chargeUpdated = (this.charge != charge);
 		if (chargeUpdated){
-			logger.info("Battery charge changed from " + this.charge + " to " + charge);
+			log.info("Battery charge changed from " + this.charge + " to " + charge);
 			this.charge = charge;
 		}
 	}
 
-	public State getCharge() {
-		return new StringType(charge.getText());
+	public String getCharge() {
+		return charge.getText();
 	}
 
 	public boolean isChargeUpdated() {
