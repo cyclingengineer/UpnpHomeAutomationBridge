@@ -4,10 +4,6 @@ import org.fourthline.cling.binding.annotations.*;
 
 import java.util.logging.Logger;
 
-@UpnpService(serviceId = @UpnpServiceId("TemperatureSensor"), 
-	serviceType = @UpnpServiceType(value = "TemperatureSensor", 
-	version = 1))
-
 public abstract class TemperatureSensorService {
 
 	protected final Logger log = Logger.getLogger(this.getClass().getName());

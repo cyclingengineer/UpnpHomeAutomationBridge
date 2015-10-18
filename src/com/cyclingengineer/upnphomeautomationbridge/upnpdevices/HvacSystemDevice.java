@@ -18,7 +18,9 @@ import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.UDADeviceType;
 import org.fourthline.cling.model.types.UDN;
 
-public class HvacZoneThermostatDevice extends UpnpDevice {
+import com.cyclingengineer.upnphomeautomationbridge.upnpservices.HvacUserOperatingModeServiceSystemUserMode;
+
+public class HvacSystemDevice extends UpnpDevice {
 
 	protected String deviceIdentity; 
 	protected String friendlyName;
@@ -26,16 +28,15 @@ public class HvacZoneThermostatDevice extends UpnpDevice {
 	protected String modelName;
 	protected String modelDescription; 
 	protected String modelNumber;
-	protected Class<?> zoneUserModeServiceClass;
+	protected Class<?> systemUserModeServiceClass;
 	
-	
-	public HvacZoneThermostatDevice(String deviceIdentity, 
+	public HvacSystemDevice(String deviceIdentity, 
 			String friendlyName, 
 			String manufacturerName, 
 			String modelName, 
 			String modelDescription, 
 			String modelNumber, 
-			Class<?> zoneUserModeServiceClass) {
+			Class<?> systemUserModeServiceClass) {
 		super();
 		this.deviceIdentity = deviceIdentity; 
 		this.friendlyName = friendlyName;
@@ -43,7 +44,7 @@ public class HvacZoneThermostatDevice extends UpnpDevice {
 		this.modelName = modelName;
 		this.modelDescription = modelDescription; 
 		this.modelNumber = modelNumber;
-		this.zoneUserModeServiceClass = zoneUserModeServiceClass;
+		this.systemUserModeServiceClass = systemUserModeServiceClass;
 	}
 	
 	public LocalDevice createDevice( ) 
@@ -65,11 +66,11 @@ public class HvacZoneThermostatDevice extends UpnpDevice {
 
 		// we have to have a ZoneUserMode HVAC_OperatingMode service
 		LocalService zoneUserModeLocalService = 
-				new AnnotationLocalServiceBinder().read(zoneUserModeServiceClass);
+				new AnnotationLocalServiceBinder().read(systemUserModeServiceClass);
 
 		zoneUserModeLocalService.setManager(
 				new DefaultServiceManager(
-						zoneUserModeLocalService, zoneUserModeServiceClass
+						zoneUserModeLocalService, systemUserModeServiceClass
 				)
 		);
 

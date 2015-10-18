@@ -32,6 +32,11 @@ import org.openhab.binding.maxcube.internal.message.RoomInformation;
 
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.Room;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices.Eq3RoomHvacZoneThermostatDevice;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceSystemUserMode;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceZoneUserMode;
+import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacSystemDevice;
+import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacZoneThermostatDevice;
+import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.UpnpDevice;
 
 /**
  * This is the top level class for the EQ-3 MAX! UPNP bridge
@@ -39,6 +44,7 @@ import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices.Eq3RoomHv
  */
 public class Eq3MaxManager implements Runnable {
 	
+	private final static String SERVICE_VERSION = "v1";
 	private UpnpService upnpService;
 	private String cubeIp = "";
 	private int cubePort = 62910;
@@ -52,6 +58,8 @@ public class Eq3MaxManager implements Runnable {
 	private ArrayList<Configuration> configurations = new ArrayList<Configuration>();
 	private ArrayList<Device> devices = new ArrayList<Device>();
 	private ArrayList<Room> rooms = new ArrayList<Room>();
+	
+	private ArrayList<UpnpDevice> upnpDeviceList = new ArrayList<UpnpDevice>();
 	
 	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
@@ -270,18 +278,46 @@ public class Eq3MaxManager implements Runnable {
 		}
 		
 		// TODO build Upnp device(s) based on data received from MAX! cube 
+		// setup top level system device
+		HvacSystemDevice topLevelHvacSystemDevice = new HvacSystemDevice("MAX! Cube at "+cubeIp, 
+				"MAX! Cube at "+cubeIp, 
+				"CyclingEngineer", 
+				"Upnp EQ3 Bridge", 
+				"EQ3 MAX! LAN cube bridge service", 
+				SERVICE_VERSION, 
+				Eq3MaxHvacUserOperatingModeServiceSystemUserMode.class);
+		upnpDeviceList.add(topLevelHvacSystemDevice);
+		
+		// generate a HVAC_ZoneThermostat for each room
+		for (Room r : rooms){
+			HvacZoneThermostatDevice newZone = new HvacZoneThermostatDevice(
+					Integer.toString(r.getRoomId()), 
+					r.getRoomName(),
+					"CyclingEngineer",
+					"EQ3 MAX! Room",
+					"Representation of a EQ3 cube room",
+					SERVICE_VERSION,
+					Eq3MaxHvacUserOperatingModeServiceZoneUserMode.class);
+			// TODO add room services as required
+			// add room zone to HVAC system
+			topLevelHvacSystemDevice.addChildDevice(newZone);			
+		}
 		
 		// TODO setup Upnp service
 		// example:
 		try {			
             
 			//example device
-            Eq3RoomHvacZoneThermostatDevice thermostat = new Eq3RoomHvacZoneThermostatDevice("Room Thermostat 1", "RT1 Friendly Name", "Manuf", "Model", "A lovely room thermostat", "v1");
+            //Eq3RoomHvacZoneThermostatDevice thermostat = new Eq3RoomHvacZoneThermostatDevice("Room Thermostat 1", "RT1 Friendly Name", "Manuf", "Model", "A lovely room thermostat", "v1");
 
             // add thermostat
-            this.upnpService.getRegistry().addDevice(
-            		thermostat.createDevice()
-            );
+            //this.upnpService.getRegistry().addDevice(
+            //		thermostat.createDevice()
+            //);
+						
+			this.upnpService.getRegistry().addDevice(
+					topLevelHvacSystemDevice.createDevice()
+			);			
 
         } catch (Exception ex) {
             System.err.println("Exception occured: " + ex);
