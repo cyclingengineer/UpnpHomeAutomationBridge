@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -18,11 +19,18 @@ import org.openhab.binding.maxcube.internal.exceptions.MessageIsWaitingException
 import org.openhab.binding.maxcube.internal.exceptions.NoMessageAvailableException;
 import org.openhab.binding.maxcube.internal.exceptions.UnprocessableMessageException;
 import org.openhab.binding.maxcube.internal.exceptions.UnsupportedMessageTypeException;
+import org.openhab.binding.maxcube.internal.message.C_Message;
+import org.openhab.binding.maxcube.internal.message.Configuration;
+import org.openhab.binding.maxcube.internal.message.Device;
+import org.openhab.binding.maxcube.internal.message.DeviceInformation;
+import org.openhab.binding.maxcube.internal.message.L_Message;
 import org.openhab.binding.maxcube.internal.message.M_Message;
 import org.openhab.binding.maxcube.internal.message.Message;
 import org.openhab.binding.maxcube.internal.message.MessageProcessor;
 import org.openhab.binding.maxcube.internal.message.MessageType;
+import org.openhab.binding.maxcube.internal.message.RoomInformation;
 
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.Room;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices.Eq3RoomHvacZoneThermostatDevice;
 
 /**
@@ -39,7 +47,11 @@ public class Eq3MaxManager implements Runnable {
 	private BufferedReader cubeReader = null;
 	private OutputStreamWriter cubeWriter = null;
 	
-	MessageProcessor messageProcessor = new MessageProcessor();
+	private MessageProcessor messageProcessor = new MessageProcessor();
+	
+	private ArrayList<Configuration> configurations = new ArrayList<Configuration>();
+	private ArrayList<Device> devices = new ArrayList<Device>();
+	private ArrayList<Room> rooms = new ArrayList<Room>();
 	
 	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
@@ -92,7 +104,7 @@ public class Eq3MaxManager implements Runnable {
 		
 		logger.info("Successfully connected to cube at "+cubeIp);	
 		
-		// TODO Find all available devices
+		// Find all available devices
 		boolean processMessages = true;
 		while (processMessages) {
 			String rawLine = null;
@@ -129,16 +141,88 @@ public class Eq3MaxManager implements Runnable {
 					// process messages
 					switch (message.getType())
 					{
-						case M: 
+						case M: // device and room configuration
 						{
 							M_Message msg = (M_Message) message;
-							// TODO loop through devices adding them to new or existing rooms
-							// each room represents a UPNP HVAC Zone
+							// process rooms
+							for (RoomInformation ri : msg.rooms) {
+								Room existingRoom = null;
+								for (Room r : rooms) {
+									if (r.getRoomId() == ri.getPosition()) {
+										existingRoom = r;
+										break;
+									}
+								}
+								// no existing room found - add one
+								if (existingRoom == null) {
+									logger.info("Adding room "+ri.getName());
+									rooms.add(new Room(ri.getName(), ri.getPosition()));
+								}									
+							}
+							
+							// process devices
+							for (DeviceInformation di : msg.devices) {
+								
+								// generate device to room mapping							
+								Room parentRoom = null;
+								for (Room r : rooms) {
+									if (r.getRoomId() == di.getRoomId())
+										parentRoom = r;
+								}
+								if (parentRoom == null) {
+									// this would be odd... TODO handle orphaned device?
+									logger.warning("Found orphaned device "+di.getName());
+									continue;
+								} else {
+									logger.info("Adding "+di.getName()+" to "+parentRoom.getRoomName());
+									parentRoom.addDevice(di.getSerialNumber());
+								}
+								
+								// setup configurations
+								Configuration c = null;
+								for (Configuration conf : configurations) {
+									if (conf.getSerialNumber().equalsIgnoreCase(di.getSerialNumber())) {
+										c = conf;
+										break;
+									}
+								}
+
+								if (c != null) {
+									configurations.remove(c);
+								}
+
+								c = Configuration.create(di);
+								configurations.add(c);
+
+								c.setRoomId(di.getRoomId());
+							}							
+							break;
+						}
+						
+						case C: // device state information
+						{
+							Configuration c = null;
+							for (Configuration conf : configurations) {
+								if (conf.getSerialNumber().equalsIgnoreCase(((C_Message) message).getSerialNumber())) {
+									c = conf;
+									break;
+								}
+							}
+
+							if (c == null) {
+								configurations.add(Configuration.create(message));
+							} else {
+								c.setValues((C_Message) message);
+							}
 							break;
 						}
 						// TODO other message types...
 						case L: 
 						{
+							((L_Message) message).updateDevices(devices, configurations);
+							
+							logger.info(""+devices.size()+" devices found." );
+							
 							// the L message is the last one, while the reader
 							// would hang trying to read a new line and
 							// eventually the
@@ -185,10 +269,9 @@ public class Eq3MaxManager implements Runnable {
 			logger.fine(Utils.getStackTrace(e));
 		}
 		
-		// TODO build Upnp device(s) and setup service
+		// TODO build Upnp device(s) based on data received from MAX! cube 
 		
-		// TODO request data from max cube & start update loop
-		
+		// TODO setup Upnp service
 		// example:
 		try {			
             
@@ -205,6 +288,9 @@ public class Eq3MaxManager implements Runnable {
             ex.printStackTrace(System.err);
             System.exit(1);
         }
+		
+		// TODO request data from max cube & start update loop
+		
 	}
 
 }
