@@ -1,4 +1,4 @@
-package com.cyclingengineer.upnphomeautomationbridge.eq3max;
+package com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices;
 
 import com.cyclingengineer.upnphomeautomationbridge.upnpservices.HvacUserOperatingModeServiceZoneUserMode;
 

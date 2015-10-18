@@ -1,6 +1,7 @@
 package com.cyclingengineer.upnphomeautomationbridge.eq3max;
 
 import org.fourthline.cling.UpnpService;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices.Eq3RoomHvacZoneThermostatDevice;
 
 /**
  * This is the top level class for the EQ-3 MAX! UPNP bridge
@@ -10,18 +11,16 @@ public class Eq3MaxManager implements Runnable {
 	
 	private UpnpService upnpService;
 	
-	public Eq3MaxManager(UpnpService upnpService)
-	{
+	public Eq3MaxManager(UpnpService upnpService) {
 		this.upnpService = upnpService;
-	}
-	
-	public void run() {
-		try {
-			Eq3RoomHvacZoneThermostatDevice roomTherm = new Eq3RoomHvacZoneThermostatDevice("Room Thermostat 1", "RT1 Friendly Name", "Manuf", "Model", "A lovely room thermostat", "v1");
+		
+		try {			
+            
+            Eq3RoomHvacZoneThermostatDevice thermostat = new Eq3RoomHvacZoneThermostatDevice("Room Thermostat 1", "RT1 Friendly Name", "Manuf", "Model", "A lovely room thermostat", "v1");
 
-            // Add the bound local device to the registry
+            // add thermostat
             upnpService.getRegistry().addDevice(
-            		roomTherm.createDevice()
+            		thermostat.createDevice()
             );
 
         } catch (Exception ex) {
@@ -29,6 +28,10 @@ public class Eq3MaxManager implements Runnable {
             ex.printStackTrace(System.err);
             System.exit(1);
         }
+	}
+	
+	public void run() {
+		// TODO run eq3 stuff here
 	}
 
 }

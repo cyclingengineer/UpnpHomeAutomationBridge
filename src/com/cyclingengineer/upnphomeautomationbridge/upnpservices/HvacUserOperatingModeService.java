@@ -5,14 +5,9 @@ import java.util.logging.Logger;
 import org.fourthline.cling.binding.annotations.UpnpAction;
 import org.fourthline.cling.binding.annotations.UpnpInputArgument;
 import org.fourthline.cling.binding.annotations.UpnpOutputArgument;
-import org.fourthline.cling.binding.annotations.UpnpService;
-import org.fourthline.cling.binding.annotations.UpnpServiceId;
-import org.fourthline.cling.binding.annotations.UpnpServiceType;
 import org.fourthline.cling.binding.annotations.UpnpStateVariable;
 
-@UpnpService(serviceId = @UpnpServiceId("ZoneUserMode"), 
-serviceType = @UpnpServiceType(value = "HVAC_UserOperatingMode", 
-version = 1))
+
 
 public abstract class HvacUserOperatingModeService {
 	

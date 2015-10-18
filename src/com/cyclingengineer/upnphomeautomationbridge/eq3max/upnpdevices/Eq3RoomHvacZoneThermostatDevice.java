@@ -1,5 +1,6 @@
-package com.cyclingengineer.upnphomeautomationbridge.eq3max;
+package com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices;
 
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceZoneUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacZoneThermostatDevice;
 import com.cyclingengineer.upnphomeautomationbridge.upnpservices.HvacUserOperatingModeService;
 
