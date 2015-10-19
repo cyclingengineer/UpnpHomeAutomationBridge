@@ -1,10 +1,6 @@
 package com.cyclingengineer.upnphomeautomationbridge.eq3max;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.logging.Level;
@@ -28,14 +24,12 @@ import org.openhab.binding.maxcube.internal.message.HeatingThermostat;
 import org.openhab.binding.maxcube.internal.message.L_Message;
 import org.openhab.binding.maxcube.internal.message.M_Message;
 import org.openhab.binding.maxcube.internal.message.Message;
-import org.openhab.binding.maxcube.internal.message.MessageProcessor;
-import org.openhab.binding.maxcube.internal.message.MessageType;
 import org.openhab.binding.maxcube.internal.message.RoomInformation;
 
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.CubeConnectionManager;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.Room;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.SetpointUpdate;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.ZoneTemperatureUpdate;
-import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices.Eq3RoomHvacZoneThermostatDevice;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceSystemUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceZoneUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3TemperatureSensorServiceZoneTemperature;
@@ -53,14 +47,10 @@ public class Eq3MaxManager implements Runnable {
 	private final static int REFRESH_INTERVAL = 10000;
 	private final static String SERVICE_VERSION = "v1";
 	private UpnpService upnpService;
-	private String cubeIp = "";
-	private int cubePort = 62910;
 	
-	private Socket cubeSocket = null;
-	private BufferedReader cubeReader = null;
-	private OutputStreamWriter cubeWriter = null;
-	
-	private MessageProcessor messageProcessor = new MessageProcessor();
+	String cubeIp = "";
+	int cubePort = 62910;
+	CubeConnectionManager cubeConManager = null;
 	
 	private ArrayList<Configuration> configurations = new ArrayList<Configuration>();
 	private ArrayList<Device> devices = new ArrayList<Device>();
@@ -78,26 +68,6 @@ public class Eq3MaxManager implements Runnable {
 		
 	}
 	
-	private void openCubeConnection() throws UnknownHostException, IOException {
-		if (cubeSocket == null) {
-			cubeSocket = new Socket(cubeIp, cubePort);
-			cubeSocket.setSoTimeout(2000);
-			logger.info("Established connection to MAX! cube at "+cubeIp+":"+cubePort);
-			cubeReader = new BufferedReader(new InputStreamReader(cubeSocket.getInputStream()));
-			cubeWriter = new OutputStreamWriter(cubeSocket.getOutputStream());
-		}
-	}
-	
-	private void closeCubeConnection() throws IOException {
-		if (cubeSocket != null) {			
-			cubeSocket.close();
-			logger.info("Closed connection to MAX! cube");
-			cubeReader = null;
-			cubeWriter = null;
-			cubeSocket = null;
-		}
-	}
-	
 	public void run() {
 		// MAX! cube discovery
 		if (cubeIp.isEmpty()) {
@@ -109,9 +79,11 @@ public class Eq3MaxManager implements Runnable {
 			return;
 		} 
 		
+		cubeConManager = new CubeConnectionManager(devices, cubeIp, cubePort);
+		
 		logger.info("Found cube at "+cubeIp);		
 		try {
-			openCubeConnection();
+			cubeConManager.openCubeConnection();
 		} catch (UnknownHostException e) {
 			logger.severe("Unable to connect to cube (UnknownHostException): "+e.getMessage());
 			return;
@@ -127,7 +99,7 @@ public class Eq3MaxManager implements Runnable {
 		while (processMessages) {
 			String rawLine = null;
 			try {
-				rawLine = cubeReader.readLine();
+				rawLine = cubeConManager.getCubeReader().readLine();
 			} catch (Exception e) {
 				logger.severe("Error reading data from cube: "+e.getMessage());
 				processMessages = false;
@@ -144,9 +116,9 @@ public class Eq3MaxManager implements Runnable {
 			
 			Message message = null;
 			try {
-				this.messageProcessor.addReceivedLine(rawLine);
-				if (this.messageProcessor.isMessageAvailable()) {
-					message = this.messageProcessor.pull();
+				cubeConManager.getMessageProcessor().addReceivedLine(rawLine);
+				if (cubeConManager.getMessageProcessor().isMessageAvailable()) {
+					message = cubeConManager.getMessageProcessor().pull();
 					logger.info("New MAX! message available");
 				} else {
 					continue;
@@ -257,35 +229,30 @@ public class Eq3MaxManager implements Runnable {
 				}
 			}  catch (IncorrectMultilineIndexException ex) {
 				logger.info("Incorrect MAX!Cube multiline message detected. Stopping processing and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (NoMessageAvailableException ex) {
 				logger.info("Could not process MAX!Cube message. Stopping processing and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (IncompleteMessageException ex) {
 				logger.info("Error while parsing MAX!Cube multiline message. Stopping processing, and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (UnprocessableMessageException ex) {
 				logger.info("Error while parsing MAX!Cube message. Stopping processing, and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (UnsupportedMessageTypeException ex) {
 				logger.info("Unsupported MAX!Cube message detected. Ignoring and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (MessageIsWaitingException ex) {
 				logger.info("There was and unhandled message waiting. Ignoring and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (Exception e) {
 				logger.info("Failed to process message received by MAX! protocol.");
 				logger.fine(Utils.getStackTrace(e));
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			}
 		}
-		
-		try {
-			closeCubeConnection();
-		} catch (IOException e) {
-			logger.warning("Failed to close cube socket");
-			logger.fine(Utils.getStackTrace(e));
-		}
+				
+		cubeConManager.closeCubeConnection();
 		
 		// build Upnp device(s) based on data received from MAX! cube 
 		// setup top level system device
@@ -365,6 +332,7 @@ public class Eq3MaxManager implements Runnable {
 				roomTempSetpointServiceImp.setDeviceSerialNumber(roomTempSenseDev.getSerialNumber());
 				roomTempSetpointServiceImp.setApplication("Room");
 				roomTempSetpointServiceImp.setName(r.getRoomName() +" Setpoint ("+roomTempSenseDev.getType()+")");
+				roomTempSetpointServiceImp.setCubeConnectionManager(cubeConManager);
 				setpointUpdateRegister.add(roomTempSetpointServiceImp);	
 			}
 			
@@ -386,20 +354,26 @@ public class Eq3MaxManager implements Runnable {
 		
 		boolean continuePolling = true;
 		while (continuePolling) {
+			cubeConManager.processQueue(); // process all commands
+			try {
+				Thread.sleep(REFRESH_INTERVAL);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 			continuePolling = cubePoller();
+			try {
+				Thread.sleep(REFRESH_INTERVAL);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 		}		
 	}
 	
 	boolean cubePoller() {
 		boolean continuePolling = true;
-		try {
-			Thread.sleep(REFRESH_INTERVAL);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		
 		try {
-			openCubeConnection();
+			cubeConManager.openCubeConnection();
 		} catch (UnknownHostException e) {
 			logger.severe("Unable to connect to cube (UnknownHostException): "+e.getMessage());
 			return true;
@@ -415,7 +389,7 @@ public class Eq3MaxManager implements Runnable {
 		while (processMessages) {
 			String rawLine = null;
 			try {
-				rawLine = cubeReader.readLine();
+				rawLine = cubeConManager.getCubeReader().readLine();
 			} catch (Exception e) {
 				logger.severe("Error reading data from cube: "+e.getMessage());
 				processMessages = false;
@@ -430,9 +404,9 @@ public class Eq3MaxManager implements Runnable {
 			
 			Message message = null;
 			try {
-				this.messageProcessor.addReceivedLine(rawLine);
-				if (this.messageProcessor.isMessageAvailable()) {
-					message = this.messageProcessor.pull();					
+				cubeConManager.getMessageProcessor().addReceivedLine(rawLine);
+				if (cubeConManager.getMessageProcessor().isMessageAvailable()) {
+					message = cubeConManager.getMessageProcessor().pull();					
 				} else {
 					continue;
 				}
@@ -455,35 +429,32 @@ public class Eq3MaxManager implements Runnable {
 				}
 			} catch (IncorrectMultilineIndexException ex) {
 				logger.info("Incorrect MAX!Cube multiline message detected. Stopping processing and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (NoMessageAvailableException ex) {
 				logger.info("Could not process MAX!Cube message. Stopping processing and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (IncompleteMessageException ex) {
 				logger.info("Error while parsing MAX!Cube multiline message. Stopping processing, and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (UnprocessableMessageException ex) {
 				logger.info("Error while parsing MAX!Cube message. Stopping processing, and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (UnsupportedMessageTypeException ex) {
 				logger.info("Unsupported MAX!Cube message detected. Ignoring and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (MessageIsWaitingException ex) {
 				logger.info("There was and unhandled message waiting. Ignoring and continue with next Line.");
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			} catch (Exception e) {
 				logger.info("Failed to process message received by MAX! protocol.");
 				logger.fine(Utils.getStackTrace(e));
-				this.messageProcessor.reset();
+				cubeConManager.getMessageProcessor().reset();
 			}
 		}
 		
-		try {
-			closeCubeConnection();
-		} catch (IOException e) {
-			logger.warning("Failed to close cube socket");
-			logger.fine(Utils.getStackTrace(e));
-		}
+		
+		cubeConManager.closeCubeConnection();
+		
 
 		// TODO process the updates
 		for (Device d : devices){

@@ -3,7 +3,7 @@ package com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices;
 import org.fourthline.cling.binding.annotations.UpnpService;
 import org.fourthline.cling.binding.annotations.UpnpServiceId;
 import org.fourthline.cling.binding.annotations.UpnpServiceType;
-
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.CubeConnectionManager;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.SetpointUpdate;
 import com.cyclingengineer.upnphomeautomationbridge.upnpservices.TemperatureSetpointService;
 
@@ -16,17 +16,17 @@ public class Eq3TemperatureSetpointServiceHeatingSetpoint extends
 		SetpointUpdate {
 
 	private String devSerial = null;
+	private CubeConnectionManager cubeConnection = null;
 	
 	@Override
 	protected int setpointValueRequest() { 
 		return this.currentSetpoint;
 	}
-
+	
 	@Override
 	protected void setpointUpdate(int newSetPoint) {
-		// TODO Send message to cube to request setpoint
-
-	}
+		cubeConnection.sendSetpointCommand(devSerial, newSetPoint);
+	}	
 
 	@Override
 	public void temperatureSetpointUpdate(double value) {
@@ -44,6 +44,10 @@ public class Eq3TemperatureSetpointServiceHeatingSetpoint extends
 	@Override
 	public void setDeviceSerialNumber(String devSerial) {
 		this.devSerial = devSerial;
+	}
+	
+	public void setCubeConnectionManager(CubeConnectionManager c) {
+		cubeConnection = c;
 	}
 
 }
