@@ -33,11 +33,13 @@ import org.openhab.binding.maxcube.internal.message.MessageType;
 import org.openhab.binding.maxcube.internal.message.RoomInformation;
 
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.Room;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.SetpointUpdate;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.ZoneTemperatureUpdate;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpdevices.Eq3RoomHvacZoneThermostatDevice;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceSystemUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceZoneUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3TemperatureSensorServiceZoneTemperature;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3TemperatureSetpointServiceHeatingSetpoint;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacSystemDevice;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacZoneThermostatDevice;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.UpnpDevice;
@@ -67,6 +69,7 @@ public class Eq3MaxManager implements Runnable {
 	private ArrayList<UpnpDevice> upnpDeviceList = new ArrayList<UpnpDevice>();
 	
 	private ArrayList<ZoneTemperatureUpdate> tempUpdateRegister = new ArrayList<ZoneTemperatureUpdate>();
+	private ArrayList<SetpointUpdate> setpointUpdateRegister = new ArrayList<SetpointUpdate>();
 	
 	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
@@ -307,7 +310,7 @@ public class Eq3MaxManager implements Runnable {
 					Eq3MaxHvacUserOperatingModeServiceZoneUserMode.class);			
 			// add room services as required	
 			boolean roomTempSenseIsWallTherm = false;
-			Device roomTempSenseDev = null;
+			Device roomTempSenseDev = null;			
 			for (String devSerial : r.getRoomDeviceList()) {
 				// find device with the serial number
 				Device matchedDevice = null;
@@ -325,7 +328,7 @@ public class Eq3MaxManager implements Runnable {
 						// temperature
 						if (roomTempSenseIsWallTherm == false) {
 							roomTempSenseDev = matchedDevice;
-						}
+						}						
 						// set point
 						// valve
 						// schedule?
@@ -348,12 +351,21 @@ public class Eq3MaxManager implements Runnable {
 			}
 			// register for room temperature updates
 			if (roomTempSenseDev != null) {
+				// temperature sensor service
 				LocalService<?> tempSenseService = newZone.addServiceToDevice(Eq3TemperatureSensorServiceZoneTemperature.class);
 				Eq3TemperatureSensorServiceZoneTemperature roomTempSenseServiceImp = (Eq3TemperatureSensorServiceZoneTemperature) tempSenseService.getManager().getImplementation();
 				roomTempSenseServiceImp.setDeviceSerialNumber(roomTempSenseDev.getSerialNumber());
 				roomTempSenseServiceImp.setApplication("Room");
-				roomTempSenseServiceImp.setName(r.getRoomName() +" "+roomTempSenseDev.getType());
-				tempUpdateRegister.add(roomTempSenseServiceImp);				
+				roomTempSenseServiceImp.setName(r.getRoomName() +" Sensor ("+roomTempSenseDev.getType()+")");
+				tempUpdateRegister.add(roomTempSenseServiceImp);
+				
+				// temperature setpoint service
+				LocalService<?> tempSetpointService = newZone.addServiceToDevice(Eq3TemperatureSetpointServiceHeatingSetpoint.class);
+				Eq3TemperatureSetpointServiceHeatingSetpoint roomTempSetpointServiceImp = (Eq3TemperatureSetpointServiceHeatingSetpoint) tempSetpointService.getManager().getImplementation();
+				roomTempSetpointServiceImp.setDeviceSerialNumber(roomTempSenseDev.getSerialNumber());
+				roomTempSetpointServiceImp.setApplication("Room");
+				roomTempSetpointServiceImp.setName(r.getRoomName() +" Setpoint ("+roomTempSenseDev.getType()+")");
+				setpointUpdateRegister.add(roomTempSetpointServiceImp);	
 			}
 			
 			// add room zone to HVAC system
@@ -475,24 +487,39 @@ public class Eq3MaxManager implements Runnable {
 
 		// TODO process the updates
 		for (Device d : devices){
-			// check for device in update registry
-			ZoneTemperatureUpdate updateTempSensorTarget = null;
+			// check for device in temperature sensor update registry
+			ZoneTemperatureUpdate updateTempSensorTarget = null;			
 			for (ZoneTemperatureUpdate tempUpdate : tempUpdateRegister) {
-				if (tempUpdate.getDeviceSerialNumber().equals(d.getSerialNumber()))
+				if (tempUpdate.getDeviceSerialNumber().equals(d.getSerialNumber())) {
 					updateTempSensorTarget = tempUpdate;
+					break;
+				}
 			}
-			
+			// check for device in temperature setpoint update registry			
+			SetpointUpdate updateSetpointTarget = null;
+			for (SetpointUpdate spUpdate : setpointUpdateRegister) {
+				if (spUpdate.getDeviceSerialNumber().equals(d.getSerialNumber())){
+					updateSetpointTarget = spUpdate;
+					break;
+				}
+			}
 			switch (d.getType()) {
 			case HeatingThermostatPlus:
 			case HeatingThermostat:
 				if (updateTempSensorTarget != null && ((HeatingThermostat) d).isTemperatureActualUpdated()){
 					updateTempSensorTarget.zoneTemperatureSensorUpdate(((HeatingThermostat) d).getTemperatureActual());
 				}
+				if (updateSetpointTarget != null && ((HeatingThermostat) d).isTemperatureSetpointUpdated()){
+					updateSetpointTarget.temperatureSetpointUpdate(((HeatingThermostat) d).getTemperatureSetpoint());
+				}
 				break;
 				
 			case WallMountedThermostat:
 				if (updateTempSensorTarget != null && ((HeatingThermostat) d).isTemperatureActualUpdated()){
 					updateTempSensorTarget.zoneTemperatureSensorUpdate(((HeatingThermostat) d).getTemperatureActual());
+				}
+				if (updateSetpointTarget != null && ((HeatingThermostat) d).isTemperatureSetpointUpdated()){
+					updateSetpointTarget.temperatureSetpointUpdate(((HeatingThermostat) d).getTemperatureSetpoint());
 				}
 				break;
 				
