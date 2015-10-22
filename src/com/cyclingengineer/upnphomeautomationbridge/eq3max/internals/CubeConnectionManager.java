@@ -115,7 +115,7 @@ public class CubeConnectionManager {
 		try {			
 			this.openCubeConnection();
 
-			cubeWriter.write(commandString);
+			cubeWriter.write(commandString+"\r\n");
 			logger.fine(commandString);
 			cubeWriter.flush();
 			
