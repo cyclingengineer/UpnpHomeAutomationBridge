@@ -1,4 +1,4 @@
-package com.cyclingengineer.upnphomeautomationbridge.eq3max.internals;
+package com.cyclingengineer.upnphomeautomationbridge.upnpservices.updateservices;
 
 public interface ZoneTemperatureUpdate {
 		

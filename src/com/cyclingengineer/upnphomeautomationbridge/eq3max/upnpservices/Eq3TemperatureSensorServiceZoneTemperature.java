@@ -1,7 +1,7 @@
 package com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices;
 
-import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.ZoneTemperatureUpdate;
 import com.cyclingengineer.upnphomeautomationbridge.upnpservices.TemperatureSensorServiceZoneTemperature;
+import com.cyclingengineer.upnphomeautomationbridge.upnpservices.updateservices.ZoneTemperatureUpdate;
 
 public class Eq3TemperatureSensorServiceZoneTemperature 
 	extends	TemperatureSensorServiceZoneTemperature 

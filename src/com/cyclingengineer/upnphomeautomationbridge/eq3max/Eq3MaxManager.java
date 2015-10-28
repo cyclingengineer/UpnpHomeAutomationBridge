@@ -8,6 +8,7 @@ import java.util.logging.Logger;
 
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.meta.LocalService;
+import org.fourthline.cling.model.types.UnsignedIntegerOneByte;
 import org.openhab.binding.maxcube.internal.MaxCubeDiscover;
 import org.openhab.binding.maxcube.internal.Utils;
 import org.openhab.binding.maxcube.internal.exceptions.IncompleteMessageException;
@@ -28,8 +29,7 @@ import org.openhab.binding.maxcube.internal.message.RoomInformation;
 
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.CubeConnectionManager;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.Room;
-import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.SetpointUpdate;
-import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.ZoneTemperatureUpdate;
+import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3ControlValveServiceHeatingValve;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceSystemUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3MaxHvacUserOperatingModeServiceZoneUserMode;
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3TemperatureSensorServiceZoneTemperature;
@@ -37,6 +37,9 @@ import com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices.Eq3Tempe
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacSystemDevice;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.HvacZoneThermostatDevice;
 import com.cyclingengineer.upnphomeautomationbridge.upnpdevices.UpnpDevice;
+import com.cyclingengineer.upnphomeautomationbridge.upnpservices.updateservices.ControlValveUpdate;
+import com.cyclingengineer.upnphomeautomationbridge.upnpservices.updateservices.SetpointUpdate;
+import com.cyclingengineer.upnphomeautomationbridge.upnpservices.updateservices.ZoneTemperatureUpdate;
 
 /**
  * This is the top level class for the EQ-3 MAX! UPNP bridge
@@ -58,8 +61,10 @@ public class Eq3MaxManager implements Runnable {
 	
 	private ArrayList<UpnpDevice> upnpDeviceList = new ArrayList<UpnpDevice>();
 	
+	// register of update endpoints
 	private ArrayList<ZoneTemperatureUpdate> tempUpdateRegister = new ArrayList<ZoneTemperatureUpdate>();
 	private ArrayList<SetpointUpdate> setpointUpdateRegister = new ArrayList<SetpointUpdate>();
+	private ArrayList<ControlValveUpdate> valveUpdateRegister = new ArrayList<ControlValveUpdate>();
 	
 	protected final Logger logger = Logger.getLogger(this.getClass().getName());
 	
@@ -277,7 +282,8 @@ public class Eq3MaxManager implements Runnable {
 					Eq3MaxHvacUserOperatingModeServiceZoneUserMode.class);			
 			// add room services as required	
 			boolean roomTempSenseIsWallTherm = false;
-			Device roomTempSenseDev = null;			
+			Device roomTempSenseDev = null;
+			Device roomValve = null;
 			for (String devSerial : r.getRoomDeviceList()) {
 				// find device with the serial number
 				Device matchedDevice = null;
@@ -292,27 +298,27 @@ public class Eq3MaxManager implements Runnable {
 				switch (matchedDevice.getType()) {
 					case HeatingThermostat:
 					case HeatingThermostatPlus:
-						// temperature
+						// temperature & set point
 						if (roomTempSenseIsWallTherm == false) {
 							roomTempSenseDev = matchedDevice;
 						}						
-						// set point
 						// valve
-						// schedule?
+						roomValve = matchedDevice;
+						// TODO schedule?
 						break;
 						
 					case WallMountedThermostat:												
-						// temperature
+						// temperature & set point
 						if (roomTempSenseIsWallTherm == false){
 							roomTempSenseDev = matchedDevice;
 							roomTempSenseIsWallTherm = true; // favour wall thermostat
 						}
-						// set point
-						// schedule?
+						// TODO schedule?
 						break;
-						
+					// TODO window contact?
+					// TODO eco button?
 					default:
-						// we don't care about other devices
+						// we don't care about other devices.. yet
 						break;
 				}
 			}
@@ -334,6 +340,13 @@ public class Eq3MaxManager implements Runnable {
 				roomTempSetpointServiceImp.setName(r.getRoomName() +" Setpoint ("+roomTempSenseDev.getType()+")");
 				roomTempSetpointServiceImp.setCubeConnectionManager(cubeConManager);
 				setpointUpdateRegister.add(roomTempSetpointServiceImp);	
+			}
+			
+			if (roomValve != null) {
+				LocalService<?> controlValveService = newZone.addServiceToDevice(Eq3ControlValveServiceHeatingValve.class);
+				Eq3ControlValveServiceHeatingValve controlValveServiceImp = (Eq3ControlValveServiceHeatingValve) controlValveService.getManager().getImplementation();
+				controlValveServiceImp.setDeviceSerialNumber(roomValve.getSerialNumber());
+				valveUpdateRegister.add(controlValveServiceImp);
 			}
 			
 			// add room zone to HVAC system
@@ -469,14 +482,26 @@ public class Eq3MaxManager implements Runnable {
 					break;
 				}
 			}
+			
+			ControlValveUpdate updateControlValveTarget = null;
+			for (ControlValveUpdate cvUpdate : valveUpdateRegister) {
+				if (cvUpdate.getDeviceSerialNumber().equals(d.getSerialNumber())){
+					updateControlValveTarget = cvUpdate;
+					break;
+				}
+			}
+			
 			switch (d.getType()) {
 			case HeatingThermostatPlus:
 			case HeatingThermostat:
-				if (updateTempSensorTarget != null && ((HeatingThermostat) d).isTemperatureActualUpdated()){
+				if (updateTempSensorTarget != null){
 					updateTempSensorTarget.zoneTemperatureSensorUpdate(((HeatingThermostat) d).getTemperatureActual());
 				}
-				if (updateSetpointTarget != null && ((HeatingThermostat) d).isTemperatureSetpointUpdated()){
+				if (updateSetpointTarget != null){
 					updateSetpointTarget.temperatureSetpointUpdate(((HeatingThermostat) d).getTemperatureSetpoint());
+				}
+				if (updateControlValveTarget != null){
+					updateControlValveTarget.controlValveCurrentPositionUpdate(new UnsignedIntegerOneByte(((HeatingThermostat) d).getValvePosition()));
 				}
 				break;
 				

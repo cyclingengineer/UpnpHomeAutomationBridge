@@ -3,9 +3,10 @@ package com.cyclingengineer.upnphomeautomationbridge.eq3max.upnpservices;
 import org.fourthline.cling.binding.annotations.UpnpService;
 import org.fourthline.cling.binding.annotations.UpnpServiceId;
 import org.fourthline.cling.binding.annotations.UpnpServiceType;
+
 import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.CubeConnectionManager;
-import com.cyclingengineer.upnphomeautomationbridge.eq3max.internals.SetpointUpdate;
 import com.cyclingengineer.upnphomeautomationbridge.upnpservices.TemperatureSetpointService;
+import com.cyclingengineer.upnphomeautomationbridge.upnpservices.updateservices.SetpointUpdate;
 
 @UpnpService(serviceId = @UpnpServiceId("HeatingSetpoint"), 
 serviceType = @UpnpServiceType(value = "TemperatureSetpoint", 
