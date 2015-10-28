@@ -355,11 +355,6 @@ public class Eq3MaxManager implements Runnable {
 		boolean continuePolling = true;
 		while (continuePolling) {
 			cubeConManager.processQueue(); // process all commands
-			try {
-				Thread.sleep(REFRESH_INTERVAL);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
 			continuePolling = cubePoller();
 			try {
 				Thread.sleep(REFRESH_INTERVAL);

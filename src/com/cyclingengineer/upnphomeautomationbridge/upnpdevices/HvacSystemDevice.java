@@ -55,7 +55,7 @@ public class HvacSystemDevice extends UpnpDevice {
 		DeviceIdentity identity = new DeviceIdentity(
 				UDN.uniqueSystemIdentifier(deviceIdentity));
 
-		DeviceType type = new UDADeviceType("HVAC_ZoneThermostat", 1);
+		DeviceType type = new UDADeviceType("HVAC_System", 1);
 
 		DeviceDetails details = new DeviceDetails(friendlyName,
 				new ManufacturerDetails(manufacturerName), new ModelDetails(
