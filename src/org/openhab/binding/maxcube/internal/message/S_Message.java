@@ -11,8 +11,6 @@ package org.openhab.binding.maxcube.internal.message;
 
 import java.util.logging.Logger;
 
-import org.openhab.binding.maxcube.internal.MaxCubeBinding;
-
 
 
 /**
