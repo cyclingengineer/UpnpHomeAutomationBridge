@@ -1,5 +1,8 @@
 package com.cyclingengineer.upnphomeautomationbridge;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.UpnpServiceImpl;
 
@@ -12,9 +15,10 @@ public class UpnpHomeAutomationBridge implements Runnable{
     public static void main(String[] args) throws Exception {
     	// Start a user thread that runs the UPnP stack
     	upnpService = new UpnpServiceImpl();
-        Thread serverThread = new Thread(new UpnpHomeAutomationBridge());
-        serverThread.setDaemon(false);
-        serverThread.start();
+        //Thread serverThread = new Thread(new UpnpHomeAutomationBridge());
+        //serverThread.setDaemon(false);
+        //serverThread.start();
+    	Logger.getGlobal().setLevel(Level.ALL);
         Thread eq3Thread = new Thread(new Eq3MaxManager(upnpService));
         eq3Thread.setDaemon(false);
         eq3Thread.start();
