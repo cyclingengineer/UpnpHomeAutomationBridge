@@ -150,12 +150,7 @@ private def getSelectedEq3Bridges()
 	log.trace "getSelectedEq3Bridges"
     
     // condition selected systems into a list
-    def selectedEq3SystemsSettingsList = [] 
-    if (settings.selectedEq3Systems instanceof List) {
-    	selectedEq3SystemsSettingsList = settings.selectedEq3Systems
-    } else {    	
-        selectedEq3SystemsSettingsList.add(settings.selectedEq3Systems)
-    }
+    def selectedEq3SystemsSettingsList = getSelectedSystemsAsList()
     
     def verifiedSystems = getVerifiedEq3Bridges() ?: [:]
     def selectedSystemsList = []
@@ -195,21 +190,101 @@ private def eq3GetRoomList( )
 	state.eq3BridgeRoomList = state.eq3BridgeRoomList ?: [:]
 }
 
+// condition selected systems into a list
+private def getSelectedSystemsAsList()
+{
+    def selectedEq3SystemsSettingsList = [] 
+    if (settings.selectedEq3Systems instanceof List) {
+    	selectedEq3SystemsSettingsList = settings.selectedEq3Systems
+    } else {    	
+        selectedEq3SystemsSettingsList.add(settings.selectedEq3Systems)
+    }
+    return selectedEq3SystemsSettingsList
+}
+
+// condition selected rooms into a list
+private def getSelectedRoomsAsList()
+{
+    def selectedEq3RoomsSettingsList = [] 
+    if (settings.selectedEq3Rooms instanceof List) {
+    	selectedEq3RoomsSettingsList = settings.selectedEq3Rooms
+    } else {    	
+        selectedEq3RoomsSettingsList.add(settings.selectedEq3Rooms)
+    }
+    return selectedEq3RoomsSettingsList
+}
+
+def addZones() {
+	def selectedEq3Systems = getSelectedSystemsAsList()
+    def selectedEq3Rooms = getSelectedRoomsAsList()
+    def devices = getVerifiedEq3Bridges()
+	
+    selectedEq3Systems.each { systemDni ->
+    	selectedEq3Rooms.each { roomUdn ->
+        	def dni = systemDni + "/" + roomUdn            
+        	def d = getChildDevice(dni)
+        	if (!d) {
+    			// add each room as a child device
+        		log.trace "Add child device for "+dni
+                def newDevice = devices.find { (it.value.ip + ":" + it.value.port) == systemDni }                                
+                def newRoom = newDevice.value.rooms.find{ it.udn == roomUdn }
+                d = addChildDevice("cyclingengineer", "Upnp Bridge Eq3 Room Heating Controller", dni, newDevice?.value.hub, 
+                					["label":newRoom?.name,
+                                     "data":[
+                					 	"udn":roomUdn, 
+                                     	"ZoneTemperatureServiceEventUrl":newRoom?.ZoneTemperatureServiceEventUrl,
+                                     	"HeatingSetpointServiceEventUrl":newRoom?.HeatingSetpointServiceEventUrl,
+                                     	"HeatingValveServiceEventUrl":newRoom?.HeatingValveServiceEventUrl
+                                        ]
+                                     ])                
+    		}
+        }
+	}
+}
+
+def subscribeToDevices() {
+	log.debug "subscribeToDevices() called"
+	def devices = getAllChildDevices()
+	devices.each { d ->
+		d.subscribe()
+	}
+}
+
+def refreshDevices() {
+	log.debug "refreshDevices() called"
+	def devices = getAllChildDevices()
+	devices.each { d ->
+		log.debug "Calling refresh() on device: ${d.id}"
+		d.refresh()
+	}
+}
+
 def installed() {
 	log.debug "Installed with settings: ${settings}"
-
+	
+    runIn(5, "subscribeToDevices") // subscribe to all children, delayed by 5 seconds
+    runIn(10, "refreshDevices") //refresh devices, delayed by 10 seconds
+    
 	initialize()
 }
 
 def updated() {
 	log.debug "Updated with settings: ${settings}"
-
-	unsubscribe()
+    
 	initialize()
+    
+    runIn(5, "subscribeToDevices") // resubscribe to all children, delayed by 5 seconds
+    runIn(10, "refreshDevices") // refresh devices, delayed by 10 seconds
 }
 
 def initialize() {
-	// TODO: subscribe to attributes, devices, locations, etc.
+	unsubscribe()
+    state.subscribe = false
+    
+    if (selectedEq3Systems && selectedEq3Rooms)
+    {
+    	addZones()
+    }
 }
 
 def locationHandler(evt) {
@@ -281,8 +356,16 @@ def locationHandler(evt) {
                     log.trace "Found " + foundRoomRaw.size() +" thermostat zones"
                     def foundRoomList = []
                     foundRoomRaw.each {
-                    	def foundRoomDataMap = [:]  	
-                        foundRoomDataMap << ["name":it?.friendlyName?.text(), "udn":it?.UDN?.text() ]
+                    	def foundRoomDataMap = [:]
+                        def roomZoneTemperatureService = it?.serviceList?.service?.find { it?.serviceType?.text() == "urn:schemas-upnp-org:service:TemperatureSensor:1" &&  it?.serviceId?.text() == "urn:upnp-org:serviceId:ZoneTemperature" }
+                        def roomHeatingSetpointService = it?.serviceList?.service?.find { it?.serviceType?.text() == "urn:schemas-upnp-org:service:TemperatureSetpoint:1" &&  it?.serviceId?.text() == "urn:upnp-org:serviceId:HeatingSetpoint" }
+                        def roomHeatingValveService = it?.serviceList?.service?.find { it?.serviceType?.text() == "urn:schemas-upnp-org:service:ControlValve:1" &&  it?.serviceId?.text() == "urn:upnp-org:serviceId:HeatingValve" }
+                        foundRoomDataMap << ["name":it?.friendlyName?.text(), 
+                        					 "udn":it?.UDN?.text(), 
+                                             "ZoneTemperatureServiceEventUrl":roomZoneTemperatureService?.eventSubURL?.text(), 
+                                             "HeatingSetpointServiceEventUrl":roomHeatingSetpointService?.eventSubURL?.text(), 
+                                             "HeatingValveServiceEventUrl":roomHeatingValveService?.eventSubURL?.text(), 
+                                             ]
                         foundRoomList << foundRoomDataMap
                     }
 					eq3System.value << ["name":body?.device?.friendlyName?.text(), "verified": true, "rooms":foundRoomList]                                         
