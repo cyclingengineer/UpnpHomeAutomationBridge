@@ -270,6 +270,17 @@ def subscribeToDevices() {
 	}
 }
 
+def pollDevices() {
+	log.debug "pollDevices() called"
+	def devices = getAllChildDevices()
+	devices.each { d ->
+		log.debug "Calling poll() on device: ${d.id}"
+		d.poll()
+	}
+    // refresh automatically every 5 minutes
+    runIn(300, "pollDevices")
+}
+
 def refreshDevices() {
 	log.debug "refreshDevices() called"
 	def devices = getAllChildDevices()
@@ -277,6 +288,8 @@ def refreshDevices() {
 		log.debug "Calling refresh() on device: ${d.id}"
 		d.refresh()
 	}
+    // refresh automatically every 5 minutes
+    runIn(300, "pollDevices")
 }
 
 def installed() {
@@ -524,10 +537,8 @@ def parse(childDevice, description) {
 			body = new XmlSlurper().parseText(bodyString)
             // search through child devices to see which one this request belongs to
             getAllChildDevices().each { d ->
-            	//if (d.getDeviceDataByName("reqList")?.contains("${parsedEvent.requestId}")) {
-                	if (d.metaClass.respondsTo(f, "requestResponse")) {
-                		d.requestResponse(parsedEvent.requestId, bodyString)
-                	}
+            	//if (d.getDeviceDataByName("reqList")?.contains("${parsedEvent.requestId}")) {                	
+                	d.requestResponse(parsedEvent.requestId, bodyString)                	
                 //}
             }
             return [requestId:parsedEvent.requestId, body: bodyString]
@@ -546,7 +557,6 @@ def doUpnpAction(action, service, path, Map body, childDevice) {
     def mac = childDevice.getDeviceDataByName("secretmac")
     def ip = convertHexToIP(childDevice.getDeviceDataByName("secretip"))
     def port = convertHexToInt(childDevice.getDeviceDataByName("secretport"))
-    def udn = childDevice.getDeviceDataByName("udn")-"uuid:"
     Map soapMap = [
     	path:    path,
         urn:     "urn:schemas-upnp-org:service:$service:1",
@@ -555,6 +565,7 @@ def doUpnpAction(action, service, path, Map body, childDevice) {
         headers: [Host:"${ip}:${port}", CONNECTION: "close"]
         ]
     def hubaction = new physicalgraph.device.HubSoapAction(soapMap, mac)
+    log.trace hubaction
     sendHubCommand(hubaction)    
     return hubaction.requestId // our response event description will have a matching requestId    
 }

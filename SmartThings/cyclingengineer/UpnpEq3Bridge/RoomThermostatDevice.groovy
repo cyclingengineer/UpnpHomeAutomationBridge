@@ -94,7 +94,7 @@ metadata {
  			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
  		}
         
-        main "thermostat"
+        main "temperature"
         
         details(["heatingSetpointUp", "setpoint", "heatingSetpointDown", "valve", "temperature", "refresh"])
 	}
@@ -120,8 +120,36 @@ def parse(String description) {
 
 // handle commands
 def setHeatingSetpoint(temp) {
-	log.debug "Executing 'setHeatingSetpoint'"
-	// TODO: handle 'setHeatingSetpoint' command
+	log.debug "Executing 'setHeatingSetpoint(${temp})'"
+	
+    // update our local value, then when we poll or refresh then we send it
+    sendEvent(name: "heatingSetpoint", value: temp)
+    state.setPointUpdated = true
+}
+
+private def sendHeatingSetpointUpdate() {
+	log.debug "Executing 'sendHeatingSetpointUpdate(${temp})'"
+	def temp = state.newHeatingSetpoint
+	def setpointEventUrl = getDeviceDataByName("HeatingSetpointServiceEventUrl")
+    def setpointActionPath = setpointEventUrl.replaceAll("event", "action")
+    
+    // default to sending the current one if it's a dodgy type
+    double currentSetPoint = device.currentValue("heatingSetpoint")
+    currentSetPoint = currentSetPoint*100.0
+    def intTemp = currentSetPoint.intValue()
+    if (temp instanceof Double) {
+    	intTemp = (temp*100).intValue()
+    } else if (temp instanceof Integer) {
+    	intTemp = temp*100
+    }
+    log.trace "intTemp = ${intTemp}"
+	def requestId = parent.doUpnpAction("SetCurrentSetpoint", "TemperatureSetpoint", 
+    					setpointActionPath, [NewCurrentSetpoint: intTemp], 
+    					this)
+    
+    Map reqMap = getRequestMap()
+    reqMap << ["${requestId}":"setHeatingSetpoint"]
+    log.trace "appended reqMap = ${getRequestMap()}"    
 }
 
 def pollHeatingSetpoint() {
@@ -139,10 +167,10 @@ def pollHeatingSetpoint() {
 
 def pollTemperature() {
 	log.debug "Polling Temperature"
-	def setpointEventUrl = getDeviceDataByName("ZoneTemperatureServiceEventUrl")
-    def setpointActionPath = setpointEventUrl.replaceAll("event", "action")
+	def temperatureEventUrl = getDeviceDataByName("ZoneTemperatureServiceEventUrl")
+    def temperatureActionPath = temperatureEventUrl.replaceAll("event", "action")
 	def requestId = parent.doUpnpAction("GetCurrentTemperature", "TemperatureSensor", 
-    					setpointActionPath, [:], 
+    					temperatureActionPath, [:], 
     					this)
     
     Map reqMap = getRequestMap()
@@ -152,10 +180,10 @@ def pollTemperature() {
 
 def pollValve() {
 	log.debug "Polling Valve"
-	def setpointEventUrl = getDeviceDataByName("HeatingValveServiceEventUrl")
-    def setpointActionPath = setpointEventUrl.replaceAll("event", "action")
+	def valveEventUrl = getDeviceDataByName("HeatingValveServiceEventUrl")
+    def valveActionPath = valveEventUrl.replaceAll("event", "action")
 	def requestId = parent.doUpnpAction("GetPosition", "ControlValve", 
-    					setpointActionPath, [:], 
+    					valveActionPath, [:], 
     					this)
     
     Map reqMap = getRequestMap()
@@ -163,18 +191,26 @@ def pollValve() {
     log.trace "appended reqMap = ${getRequestMap()}"
 }
 
-def poll() {
-	pollHeatingSetpoint()
+private def doUpdateRoutine() {
+	// do manual update sequence
+	if (state.setPointUpdated) {
+    	sendHeatingSetpointUpdate() // this will trigger a read pollHeatingSetpoint so no need to do it separately        
+        state.setPointUpdated = false // done update, clear flag
+    } else {
+    	pollHeatingSetpoint()
+    }
     pollTemperature()
     pollValve()
+}
+
+def poll() {
+	doUpdateRoutine()
 }
 
 def refresh() {
 	log.debug "EQ3 Upnp Bridge Zone Thermostat refresh requested"
     subscribeToServices()
-    pollHeatingSetpoint()
-    pollTemperature()
-    pollValve()
+    doUpdateRoutine()
 }
 
 def subscribeToServices() {
@@ -187,13 +223,13 @@ def subscribeToServices() {
 }
 
 def heatingSetpointUp() {
-	int newSetpoint = device.currentValue("heatingSetpoint") + 0.5
+	double newSetpoint = device.currentValue("heatingSetpoint") + 0.5
 	log.debug "Increment heat set point to: ${newSetpoint}"
 	setHeatingSetpoint(newSetpoint)
 }
 
 def heatingSetpointDown() {
-	int newSetpoint = device.currentValue("heatingSetpoint") - 0.5
+	double newSetpoint = device.currentValue("heatingSetpoint") - 0.5
 	log.debug "Decrement heat set point to: ${newSetpoint}"
 	setHeatingSetpoint(newSetpoint)
 }
@@ -245,6 +281,11 @@ private def handleRequestResponse(type, body)
             	log.error "Expected XML response for Valve Position"
             }
         	break
+        case "setHeatingSetpoint":
+        	log.trace "handling Set Heating Setpoint request response"
+            pollHeatingSetpoint()
+            break
+            
         default:
         	log.error "Got unexpected request type: ${type}"
             break
