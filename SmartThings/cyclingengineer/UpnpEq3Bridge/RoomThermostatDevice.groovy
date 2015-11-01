@@ -20,7 +20,10 @@ metadata {
         capability "Polling"
 		capability "Refresh"
 
-		attribute "valvePosition", "number"        
+		attribute "valvePosition", "number"   
+        
+        command "heatingSetpointUp"
+		command "heatingSetpointDown"
 	}
 
 	simulator {
@@ -29,16 +32,16 @@ metadata {
 
 	tiles(scale: 2) {
 		multiAttributeTile(name:"thermostat", type: "thermostat", width:6, height: 4, canChangeIcon: true) {
-        	tileAttribute ("device.heatingSetpoint", key: "PRIMARY_CONTROL") {
-            	attributeState "heatingSetpoint", label: '${name}'
+        	tileAttribute ("device.temperature", key: "PRIMARY_CONTROL") {
+            	attributeState "temperature", label: '${currentValue}°C', icon: "st.home.Home1"
             }
             tileAttribute ("device.heatingSetpoint", key: "VALUE_CONTROL") {
-            	attributeState "heatingSetpoint", action:"thermostatHeatingSetpoint  heatingSetpoint.setHeatingSetpoint"
+            	attributeState "heatingSetpoint", action:"heatingSetpoint.setHeatingSetpoint"
             }
      	}        
         
         valueTile("setpoint", "device.heatingSetpoint", width: 2, height: 2) {
-        	state("heatingSetpoint", label:'${currentValue}°C', action:"thermostatHeatingSetpoint  heatingSetpoint.setHeatingSetpoint",
+        	state("heatingSetpoint", label:'Set Point:\n${currentValue}°C',
             	backgroundColors:[
                 	[value: 0, color: "#153591"],
                 	[value: 7, color: "#1e9cbb"],
@@ -52,7 +55,7 @@ metadata {
     	}
         
         valueTile("temperature", "device.temperature", width: 2, height: 2) {
-        	state("temperature", label:'${currentValue}°C',
+        	state("temperature", label:'Room Temp:\n${currentValue}°C',
             	backgroundColors:[
                 	[value: 0, color: "#153591"],
                 	[value: 7, color: "#1e9cbb"],
@@ -65,29 +68,49 @@ metadata {
         	)
     	}
         
+        valueTile("valve", "device.valvePosition", width: 2, height: 2) {
+        	state("temperature", label:'Valve Position:\n${currentValue} %',
+            	/*backgroundColors:[
+                	[value: 0, color: "#153591"],
+                	[value: 7, color: "#1e9cbb"],
+                	[value: 15, color: "#90d2a7"],
+                	[value: 23, color: "#44b621"],
+                	[value: 29, color: "#f1d801"],
+                	[value: 35, color: "#d04e00"],
+                	[value: 36, color: "#bc2323"]
+            	]*/
+        	)
+    	}
+        
+        standardTile("heatingSetpointUp", "device.heatingSetpoint", canChangeIcon: false, inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "heatingSetpointUp", label:'  ', action:"heatingSetpointUp", icon:"st.thermostat.thermostat-up", backgroundColor:"#bc2323"
+		}
+
+		standardTile("heatingSetpointDown", "device.heatingSetpoint", canChangeIcon: false, inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "heatingSetpointDown", label:'  ', action:"heatingSetpointDown", icon:"st.thermostat.thermostat-down", backgroundColor:"#bc2323"
+		}
+        
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
  			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
  		}
         
         main "thermostat"
         
-        details(["thermostat", "setpoint", "refresh"])
+        details(["heatingSetpointUp", "setpoint", "heatingSetpointDown", "valve", "temperature", "refresh"])
 	}
+}
+
+Map getRequestMap() {
+	state.requestMap = state.requestMap ?: [:]
+}
+
+private def setRequestMap( Map newMap ) {
+	state.requestMap = newMap
 }
 
 // parse events into attributes
 def parse(String description) {
-	log.debug "Parsing '${description}'"
-    
-    def msg = parseLanMessage(description)
-
-    def headersAsString = msg.header // => headers as a string
-    def headerMap = msg.headers      // => headers as a Map
-    def body = msg.body              // => request body as a string
-    def status = msg.status          // => http status code of the response
-    def json = msg.json              // => any JSON included in response body, as a data structure of lists and maps
-    def xml = msg.xml                // => any XML included in response body, as a document tree structure
-    def data = msg.data              // => either JSON or XML in response body (whichever is specified by content-type header in response)
+	log.debug "Heating Controller Parsing '${description}'"
     
 	// TODO: handle 'temperature' attribute
 	// TODO: handle 'heatingSetpoint' attribute
@@ -96,102 +119,150 @@ def parse(String description) {
 }
 
 // handle commands
-def setHeatingSetpoint() {
+def setHeatingSetpoint(temp) {
 	log.debug "Executing 'setHeatingSetpoint'"
 	// TODO: handle 'setHeatingSetpoint' command
 }
 
 def pollHeatingSetpoint() {
+	log.debug "Polling Heating Setpoint"
 	def setpointEventUrl = getDeviceDataByName("HeatingSetpointServiceEventUrl")
     def setpointActionPath = setpointEventUrl.replaceAll("event", "action")
-	def result = doUpnpAction("GetCurrentSetpoint", "TemperatureSetpoint", setpointActionPath, [:])
-    log.debug "result: ${result}"
+	def requestId = parent.doUpnpAction("GetCurrentSetpoint", "TemperatureSetpoint", 
+    					setpointActionPath, [:], 
+    					this)
+    
+    Map reqMap = getRequestMap()
+    reqMap << ["${requestId}":"HeatingSetpoint"]
+    log.trace "appended reqMap = ${getRequestMap()}"
+}
+
+def pollTemperature() {
+	log.debug "Polling Temperature"
+	def setpointEventUrl = getDeviceDataByName("ZoneTemperatureServiceEventUrl")
+    def setpointActionPath = setpointEventUrl.replaceAll("event", "action")
+	def requestId = parent.doUpnpAction("GetCurrentTemperature", "TemperatureSensor", 
+    					setpointActionPath, [:], 
+    					this)
+    
+    Map reqMap = getRequestMap()
+    reqMap << ["${requestId}":"Temperature"]
+    log.trace "appended reqMap = ${getRequestMap()}"
+}
+
+def pollValve() {
+	log.debug "Polling Valve"
+	def setpointEventUrl = getDeviceDataByName("HeatingValveServiceEventUrl")
+    def setpointActionPath = setpointEventUrl.replaceAll("event", "action")
+	def requestId = parent.doUpnpAction("GetPosition", "ControlValve", 
+    					setpointActionPath, [:], 
+    					this)
+    
+    Map reqMap = getRequestMap()
+    reqMap << ["${requestId}":"ValvePos"]
+    log.trace "appended reqMap = ${getRequestMap()}"
 }
 
 def poll() {
-	
+	pollHeatingSetpoint()
+    pollTemperature()
+    pollValve()
 }
 
 def refresh() {
 	log.debug "EQ3 Upnp Bridge Zone Thermostat refresh requested"
-    //subscribeToServices()
+    subscribeToServices()
     pollHeatingSetpoint()
+    pollTemperature()
+    pollValve()
 }
 
 def subscribeToServices() {
 	//def zoneTempEventUrl = getDeviceDataByName("ZoneTemperatureServiceEventUrl")
 	//log.trace "result ="+subscribeUpnpAction(zoneTempEventUrl, "/zoneTemp")
-    def setpointEventUrl = getDeviceDataByName("HeatingSetpointServiceEventUrl")
-    subscribeUpnpAction(setpointEventUrl)
+    //def setpointEventUrl = getDeviceDataByName("HeatingSetpointServiceEventUrl")
+    //subscribeUpnpAction(setpointEventUrl)
     //def valveEventUrl = getDeviceDataByName("HeatingValveServiceEventUrl")
     //subscribeUpnpAction(valveEventUrl)    
 }
 
-// subscribe to a UPnP event
-private subscribeUpnpAction(path, callbackPath="") {
-    log.trace "subscribe($path, $callbackPath)"
-    def address = getCallBackAddress()
-    log.trace "callback address = "+address
-    def ip = getHostAddress()
-
-    def result = new physicalgraph.device.HubAction(
-        method: "SUBSCRIBE",
-        path: path,
-        headers: [
-            HOST: ip,
-            CALLBACK: "<http://${address}/notify$callbackPath>",
-            NT: "upnp:event",
-            TIMEOUT: "Second-28800"
-        ]
-    )
-
-    log.trace "SUBSCRIBE $path"
-
-    return result
+def heatingSetpointUp() {
+	int newSetpoint = device.currentValue("heatingSetpoint") + 0.5
+	log.debug "Increment heat set point to: ${newSetpoint}"
+	setHeatingSetpoint(newSetpoint)
 }
 
-// execute a Upnp action
-def doUpnpAction(action, service, path, Map body) {
-	log.debug "doUpnpAction(${action}, ${service}, ${path}, ${body}"
-    def result = new physicalgraph.device.HubSoapAction(
-        path:    path,
-        urn:     "urn:schemas-upnp-org:service:$service:1",
-        action:  action,
-        body:    body,
-        headers: [Host:getHostAddress(), CONNECTION: "close"]
-    )
-    return result
+def heatingSetpointDown() {
+	int newSetpoint = device.currentValue("heatingSetpoint") - 0.5
+	log.debug "Decrement heat set point to: ${newSetpoint}"
+	setHeatingSetpoint(newSetpoint)
 }
 
-// gets the address of the hub
-private getCallBackAddress() {
-    return device.hub.getDataValue("localIP") + ":" + device.hub.getDataValue("localSrvPortTCP")
-}
-
-// gets the address of the device
-private getHostAddress() {
-    def ip = getDataValue("ip")
-    def port = getDataValue("port")
-
-    if (!ip || !port) {
-        def fullDniParts = device.deviceNetworkId.split("/")
-        def hostParts = fullDniParts[0].split(":")
-        if (hostParts.length == 2) {
-            ip = hostParts[0]
-            port = hostParts[1]
-        } else {
-            log.warn "Can't figure out ip and port for device: ${device.id}"
-        }
+private def handleRequestResponse(type, body)
+{
+	// handle the request
+    def results = []
+    switch(type) {
+    	case "HeatingSetpoint":
+        	log.trace "handling HeatingSetpoint request response"
+            if (body.contains("xml"))
+            {
+            	// got xml - so parse it
+                def parsedXml = new XmlSlurper().parseText(body)
+                def setpointString = parsedXml.Body.GetCurrentSetpointResponse.CurrentSetpoint
+                log.trace "setpointString = "+setpointString
+                def setpoint = new Double(setpointString.text()) / 100.0
+                sendEvent(name: "heatingSetpoint", value: setpoint)
+            } else {
+            	log.error "Expected XML response for HeatingSetpoint"
+            }
+        	break
+        case "Temperature":
+        	log.trace "handling Temperature request response"
+            if (body.contains("xml"))
+            {
+            	// got xml - so parse it
+                def parsedXml = new XmlSlurper().parseText(body)
+                def tempString = parsedXml.Body.GetCurrentTemperatureResponse.CurrentTemperature
+                log.trace "tempString = "+tempString
+                def temp = new Double(tempString.text()) / 100.0
+                sendEvent(name: "temperature", value: temp)
+            } else {
+            	log.error "Expected XML response for Temperature"
+            }
+        	break
+        case "ValvePos":
+        	log.trace "handling Valve Position request response"
+            if (body.contains("xml"))
+            {
+            	// got xml - so parse it
+                def parsedXml = new XmlSlurper().parseText(body)
+                def valvePosString = parsedXml.Body.GetPositionResponse.CurrentPositionStatus
+                log.trace "valvePosString = "+valvePosString
+                def valvePos = new Integer(valvePosString.text())
+                sendEvent(name: "valvePosition", value: valvePos)
+            } else {
+            	log.error "Expected XML response for Valve Position"
+            }
+        	break
+        default:
+        	log.error "Got unexpected request type: ${type}"
+            break
     }
-
-    log.debug "Using IP: ${convertHexToIP(ip)} and port: ${convertHexToInt(port)} for device: ${device.id}"
-    return convertHexToIP(ip) + ":" + convertHexToInt(port)
+    return results
 }
 
-private Integer convertHexToInt(hex) {
-    return Integer.parseInt(hex,16)
-}
-
-private String convertHexToIP(hex) {
-    return [convertHexToInt(hex[0..1]),convertHexToInt(hex[2..3]),convertHexToInt(hex[4..5]),convertHexToInt(hex[6..7])].join(".")
+def requestResponse( id, body ) {
+	log.trace("request Reponse ${id}, ${body}")
+    
+    Map reqMap = getRequestMap()
+    def requestType = reqMap["${id}"]    
+    if (requestType) {
+    	// request response was for us - handle it        
+        reqMap.remove(id)
+        setRequestMap(reqMap)
+        log.trace "cleared reqMap = ${getRequestMap()}"
+        log.trace "requestType = ${requestType}"
+        handleRequestResponse(requestType, body)
+    }    
 }

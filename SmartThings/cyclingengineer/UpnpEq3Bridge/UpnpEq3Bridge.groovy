@@ -126,7 +126,7 @@ private Map eq3BridgesDiscovered() {
 	def map = [:]
 	verifiedBridges.each {
 		def value = "${it.value.name}"
-		def key = it.value.ip + ":" + it.value.port
+		def key = it.key
 		map["${key}"] = value
 	}
 	map
@@ -155,9 +155,8 @@ private def getSelectedEq3Bridges()
     def verifiedSystems = getVerifiedEq3Bridges() ?: [:]
     def selectedSystemsList = []
     selectedEq3SystemsSettingsList.each {
-    	def systemIpAndPort = ""+it?.value        
-        def parts = systemIpAndPort.split(":")
-    	def system = verifiedSystems.find{ it?.value?.ip == parts[0] &&  it?.value?.port == parts[1] }
+    	def systemUdn = ""+it?.value                
+    	def system = verifiedSystems.find{ it?.key == systemUdn }
         selectedSystemsList << system
     }
     selectedSystemsList
@@ -170,12 +169,9 @@ private Map eq3GetSelectedSystemDiscoveredRoomList( )
 	
     def matchingSystems = getSelectedEq3Bridges()    
     
-    log.trace matchingSystems
-    
     def map = [:]
 	matchingSystems.each {    	
         it?.value?.rooms?.each {
-        	log.trace it
         	def value = "${it.name}"
 			def key = "${it.udn}"
 			map["${key}"] = value
@@ -218,23 +214,47 @@ def addZones() {
 	def selectedEq3Systems = getSelectedSystemsAsList()
     def selectedEq3Rooms = getSelectedRoomsAsList()
     def devices = getVerifiedEq3Bridges()
-	
+    
     selectedEq3Systems.each { systemDni ->
+    	def b = getChildDevice(systemDni)
+        def newBridge = devices.find { it.key == systemDni }
+        if (!b) {
+        	// create new bridge device that handles catching the returning messages
+        	b = addChildDevice("cyclingengineer", "UPnP Home Automation Bridge", systemDni, newBridge?.value.hub, 
+            	["label": newBridge?.value.name,
+                 "data":[
+                 	"mac": newBridge?.value.mac,  
+                    "ip": newBridge?.value.ip,  
+                    "port": newBridge?.value.port,  
+                    "bridge": true
+                   	]
+                ]
+            )
+            log.trace "Created ${b.displayName} with id ${systemDni}"
+        }
+        
+        b.sendEvent(name: "udn", value: newBridge?.key)
+        b.sendEvent(name: "networkAddress", value: newBridge?.value.ip +":" + newBridge?.value.port)
     	selectedEq3Rooms.each { roomUdn ->
-        	def dni = systemDni + "/" + roomUdn            
+        	def dni = roomUdn
         	def d = getChildDevice(dni)
+            def emptyString = ","
         	if (!d) {
     			// add each room as a child device
-        		log.trace "Add child device for "+dni
-                def newDevice = devices.find { (it.value.ip + ":" + it.value.port) == systemDni }                                
-                def newRoom = newDevice.value.rooms.find{ it.udn == roomUdn }
-                d = addChildDevice("cyclingengineer", "Upnp Bridge Eq3 Room Heating Controller", dni, newDevice?.value.hub, 
+        		log.trace "Add child device for "+dni     
+                log.trace newBridge
+                def newRoom = newBridge.value.rooms.find{ it.udn == roomUdn }
+                d = addChildDevice("cyclingengineer", "Upnp Bridge Eq3 Room Heating Controller", dni, newBridge?.value.hub, 
                 					["label":newRoom?.name,
                                      "data":[
+                                     	"secretip":newBridge?.value.ip,
+                                        "secretport":newBridge?.value.port,
+                                        "secretmac":newBridge?.value.mac,
                 					 	"udn":roomUdn, 
                                      	"ZoneTemperatureServiceEventUrl":newRoom?.ZoneTemperatureServiceEventUrl,
                                      	"HeatingSetpointServiceEventUrl":newRoom?.HeatingSetpointServiceEventUrl,
-                                     	"HeatingValveServiceEventUrl":newRoom?.HeatingValveServiceEventUrl
+                                     	"HeatingValveServiceEventUrl":newRoom?.HeatingValveServiceEventUrl,
+                                        "requestList":emptyString, // turns out it doesn't actually support lists, so we'll need to do it in a string
                                         ]
                                      ])                
     		}
@@ -246,7 +266,7 @@ def subscribeToDevices() {
 	log.debug "subscribeToDevices() called"
 	def devices = getAllChildDevices()
 	devices.each { d ->
-		d.subscribe()
+		//d.subscribe()
 	}
 }
 
@@ -262,8 +282,8 @@ def refreshDevices() {
 def installed() {
 	log.debug "Installed with settings: ${settings}"
 	
-    runIn(5, "subscribeToDevices") // subscribe to all children, delayed by 5 seconds
-    runIn(10, "refreshDevices") //refresh devices, delayed by 10 seconds
+    //runIn(5, "subscribeToDevices") // subscribe to all children, delayed by 5 seconds
+    //runIn(10, "refreshDevices") //refresh devices, delayed by 10 seconds
     
 	initialize()
 }
@@ -301,21 +321,22 @@ def locationHandler(evt) {
 		log.trace "HVAC system found"
 		def eq3BridgeSystems = getEq3BridgeSystemList()
 
-		if (!(eq3BridgeSystems."${parsedEvent.ssdpUSN.toString()}"))
+		if (!(eq3BridgeSystems."${parsedEvent.udn.toString()}"))
 		{ //hvac system does not exist
-			eq3BridgeSystems << ["${parsedEvent.ssdpUSN.toString()}":parsedEvent]
+			eq3BridgeSystems << ["${parsedEvent.udn.toString()}":parsedEvent]
 		}
 		else
 		{ // update the values
 
 			log.trace "Device was already found in state..."
 
-			def d = eq3BridgeSystems."${parsedEvent.ssdpUSN.toString()}"
+			def d = eq3BridgeSystems."${parsedEvent.udn.toString()}"
 			boolean deviceChangedValues = false
 
 			if(d.ip != parsedEvent.ip || d.port != parsedEvent.port) {
 				d.ip = parsedEvent.ip
 				d.port = parsedEvent.port
+                d.mac = parsedEvent.mac
                 d.ssdpPath = parsedEvent.ssdpPath
 				deviceChangedValues = true
 				log.trace "Device's port or ip changed..."
@@ -325,9 +346,13 @@ def locationHandler(evt) {
             	log.trace "Updating child device"
 				def children = getChildDevices()
 				children.each {
-					if (it.getDeviceDataByName("mac") == parsedEvent.mac) {
-						log.trace "updating dni for device ${it} with mac ${parsedEvent.mac}"
-						it.setDeviceNetworkId((parsedEvent.ip + ":" + parsedEvent.port)) //could error if device with same dni already exists
+					if (it.getDeviceDataByName("secretmac") == parsedEvent.mac) {
+						log.trace "updating up & port for device ${it} with mac ${parsedEvent.mac}"
+						it.setDeviceDataByName("secretip", parsedEvent.ip)
+                        it.setDeviceDataByName("secretport", parsedEvent.port)
+                        if (it.getDeviceDataByName("bridge")) {                        	
+        					it.sendEvent(name: "networkAddress", value: parsedEvent.ip +":" + parsedEvent.port)
+                        }
 					}
                 }
 			}
@@ -337,19 +362,17 @@ def locationHandler(evt) {
 		def headerString = new String(parsedEvent.headers.decodeBase64())
 		def bodyString = new String(parsedEvent.body.decodeBase64())
 
-		def type = (headerString =~ /Content-Type:.*/) ? (headerString =~ /Content-Type:.*/)[0] : null
+		def type = (headerString =~ /Content-Type:.*/) ? (headerString =~ /Content-Type:.*?/)[0] : null
 		def body
-		//log.trace "HVAC SYSTEM REPONSE TYPE: $type"
-        //log.trace "Body: ${bodyString}"
         
-		if (type?.contains("xml")||bodyString?.contains("<?xml"))
+		if (type?.contains("xml")||headerString?.contains("xml"))
 		{ // description.xml response (application/xml)
 			body = new XmlSlurper().parseText(bodyString)			
             
 			if (body?.device?.modelName?.text().contains("EQ3 Bridge"))
 			{
-				def eq3Bridges = getEq3BridgeSystemList()
-				def eq3System = eq3Bridges.find {it?.key?.contains(body?.device?.UDN?.text())}
+				def eq3Bridges = getEq3BridgeSystemList()                
+				def eq3System = eq3Bridges.find {it?.key?.contains(body?.device?.UDN?.text()-"uuid:")}
 				if (eq3System)
 				{
                 	def foundRoomRaw = body?.device?.deviceList?.device?.find { it?.deviceType?.text().contains( "HVAC_ZoneThermostat" ) }
@@ -364,7 +387,7 @@ def locationHandler(evt) {
                         					 "udn":it?.UDN?.text(), 
                                              "ZoneTemperatureServiceEventUrl":roomZoneTemperatureService?.eventSubURL?.text(), 
                                              "HeatingSetpointServiceEventUrl":roomHeatingSetpointService?.eventSubURL?.text(), 
-                                             "HeatingValveServiceEventUrl":roomHeatingValveService?.eventSubURL?.text(), 
+                                             "HeatingValveServiceEventUrl":roomHeatingValveService?.eventSubURL?.text(),                                              
                                              ]
                         foundRoomList << foundRoomDataMap
                     }
@@ -384,6 +407,10 @@ def locationHandler(evt) {
 			body = new groovy.json.JsonSlurper().parseText(bodyString)
 			log.trace "GOT JSON $body"
 		}
+        else {
+        	log.trace "Unknown response: $type"
+        	log.trace "Body: ${bodyString}"
+        }
 
 	}
 	else {
@@ -434,8 +461,15 @@ private def parseEventMessage(String description) {
 			part -= "ssdpUSN:"
 			def valueString = part.trim()
 			if (valueString) {
-				event.ssdpUSN = valueString
-			}
+				event.ssdpUSN = valueString                
+                if (valueString.startsWith('uuid:')) {
+                	valueString -= "uuid:"
+                    def valueUdn = valueString.split(":")[0].trim()
+                    if (valueUdn) {
+                    	event.udn = valueUdn
+                    }
+                }
+			}            
 		}
 		else if (part.startsWith('ssdpTerm:')) {
 			part -= "ssdpTerm:"
@@ -458,6 +492,13 @@ private def parseEventMessage(String description) {
 				event.body = valueString
 			}
 		}
+        else if (part.startsWith('requestId')) {
+			part -= "requestId:"
+			def valueString = part.trim()
+			if (valueString) {
+				event.requestId = valueString
+			}
+		}
         //else log.trace "part = ${part}"
 	}
 
@@ -466,6 +507,8 @@ private def parseEventMessage(String description) {
 
 /////////CHILD DEVICE METHODS
 def parse(childDevice, description) {
+	log.trace "parent parse"
+    
 	def parsedEvent = parseEventMessage(description)
 
 	if (parsedEvent.headers && parsedEvent.body) {
@@ -473,11 +516,68 @@ def parse(childDevice, description) {
 		def bodyString = new String(parsedEvent.body.decodeBase64())
 		log.trace "parse() - ${bodyString}"
 
-		def body = new groovy.json.JsonSlurper().parseText(bodyString)
+		def type = (headerString =~ /Content-Type:.*/) ? (headerString =~ /Content-Type:.*?/)[0] : null
+		def body
+        
+		if (type?.contains("xml")||headerString?.contains("xml"))
+		{ // XML response
+			body = new XmlSlurper().parseText(bodyString)
+            // search through child devices to see which one this request belongs to
+            getAllChildDevices().each { d ->
+            	//if (d.getDeviceDataByName("reqList")?.contains("${parsedEvent.requestId}")) {
+                	if (d.metaClass.respondsTo(f, "requestResponse")) {
+                		d.requestResponse(parsedEvent.requestId, bodyString)
+                	}
+                //}
+            }
+            return [requestId:parsedEvent.requestId, body: bodyString]
+            // parse the body and trigger event on correct child device
+        }        
+        
 	} else {
 		log.trace "parse - got something other than headers,body..."
 		return []
 	}
+}
+
+// execute a Upnp action - only from actual child devices, not bridge devices
+def doUpnpAction(action, service, path, Map body, childDevice) {
+	log.debug "doUpnpAction(${action}, ${service}, ${path}, ${body}, ...)"
+    def mac = childDevice.getDeviceDataByName("secretmac")
+    def ip = convertHexToIP(childDevice.getDeviceDataByName("secretip"))
+    def port = convertHexToInt(childDevice.getDeviceDataByName("secretport"))
+    def udn = childDevice.getDeviceDataByName("udn")-"uuid:"
+    Map soapMap = [
+    	path:    path,
+        urn:     "urn:schemas-upnp-org:service:$service:1",
+        action:  action,
+        body:    body,
+        headers: [Host:"${ip}:${port}", CONNECTION: "close"]
+        ]
+    def hubaction = new physicalgraph.device.HubSoapAction(soapMap, mac)
+    sendHubCommand(hubaction)    
+    return hubaction.requestId // our response event description will have a matching requestId    
+}
+
+// subscribe to a UPnP event
+private subscribeUpnpAction(path, callbackAddress, callbackPath="") {
+    log.trace "subscribe($path, $callbackAddress, $callbackPath)"        
+    def ip = getHostAddress()
+	Map actionMap = [
+    	method: "SUBSCRIBE",
+        path: path,
+        headers: [
+            HOST: ip,
+            CALLBACK: "<http://${callbackAddress}/notify$callbackPath>",
+            NT: "upnp:event",
+            TIMEOUT: "Second-28800"
+        	]
+        ]
+    def action = new physicalgraph.device.HubAction(actionMap, mac)    
+	
+    log.trace "SUBSCRIBE $path"
+	
+    sendHubCommand(action)
 }
 
 private Integer convertHexToInt(hex) {
@@ -493,6 +593,11 @@ private getHostAddress(d) {
 	def ip = convertHexToIP(parts[0])
 	def port = convertHexToInt(parts[1])
 	return ip + ":" + port
+}
+
+// gets the address of the hub
+private getCallBackAddress(childDevice) {
+    return childDevice.device.hub.getDataValue("localIP") + ":" + childDevice.device.hub.getDataValue("localSrvPortTCP")
 }
 
 private Boolean canInstallLabs()
